@@ -1,0 +1,520 @@
+// app.js - 主应用逻辑 (支持 Kinect 摄像头)
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('应用初始化中...');
+  
+  // 获取DOM元素
+  const roomIdInput = document.getElementById('roomIdInput');
+  const userIdInput = document.getElementById('userIdInput');
+  const connectButton = document.getElementById('connectButton');
+  const localTestButton = document.getElementById('localTestButton');
+  const localVideo = document.getElementById('localVideo');
+  const remoteVideo = document.getElementById('remoteVideo');
+  const connectionStatus = document.getElementById('connectionStatus');
+  const serverStatus = document.getElementById('serverStatus');
+  const serverUrlInput = document.getElementById('serverUrlInput');
+  
+  // 音频控制元素
+  const muteButton = document.getElementById('muteButton');
+  const volumeSlider = document.getElementById('volumeSlider');
+  const audioStatus = document.getElementById('audioStatus');
+  const cameraToggle = document.getElementById('cameraToggle');
+  const showDebugButton = document.getElementById('showDebugButton');
+  const debugPanel = document.getElementById('debugPanel');
+  const logsContainer = document.getElementById('logs');
+  
+  // Kinect 相关控制元素
+  const kinectControlsDiv = document.getElementById('kinectControls') || document.createElement('div');
+  const pointCloudToggle = document.createElement('button');
+  pointCloudToggle.id = 'pointCloudToggle';
+  pointCloudToggle.textContent = '启用点云';
+  pointCloudToggle.classList.add('btn', 'btn-info', 'mx-2');
+  
+  // 如果不存在 kinectControlsDiv，创建并添加
+  if (!document.getElementById('kinectControls')) {
+    kinectControlsDiv.id = 'kinectControls';
+    kinectControlsDiv.classList.add('controls-row', 'mt-2');
+    kinectControlsDiv.style.display = 'none'; // 初始隐藏
+    
+    // 添加标题
+    const kinectLabel = document.createElement('span');
+    kinectLabel.textContent = 'Kinect 控制: ';
+    kinectControlsDiv.appendChild(kinectLabel);
+    
+    // 添加点云开关
+    kinectControlsDiv.appendChild(pointCloudToggle);
+    
+    // 添加到控制面板
+    const controlsContainer = document.querySelector('.controls-container');
+    if (controlsContainer) {
+      controlsContainer.appendChild(kinectControlsDiv);
+    }
+  }
+  
+  // 默认服务器URL
+  if (!serverUrlInput.value) {
+    // 尝试使用当前网址所在的服务器作为默认信令服务器
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    const host = window.location.hostname;
+    const port = '3001';  // 信令服务器端口
+    serverUrlInput.value = `${protocol}//${host}:${port}`;
+  }
+  
+  // 音频状态
+  let isMuted = false;
+  let isCameraOff = false;
+  
+  // 调试模式
+  let debugMode = false;
+  
+  // 显示/隐藏调试面板
+  if (showDebugButton && debugPanel) {
+    showDebugButton.addEventListener('click', () => {
+      debugMode = !debugMode;
+      debugPanel.classList.toggle('show');
+      showDebugButton.textContent = debugMode ? '隐藏调试信息' : '显示调试信息';
+    });
+  }
+  
+  // 添加日志
+  function addLog(category, message) {
+    if (!logsContainer) return;
+    
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString();
+    const logEntry = document.createElement('div');
+    logEntry.innerHTML = `<span style="color:#888">[${timeStr}]</span> <strong>${category}:</strong> ${message}`;
+    
+    logsContainer.appendChild(logEntry);
+    logsContainer.scrollTop = logsContainer.scrollHeight;
+    
+    // 保持日志在合理范围内
+    while (logsContainer.childElementCount > 100) {
+      logsContainer.removeChild(logsContainer.firstChild);
+    }
+  }
+  
+  // 更新状态显示
+  function updateStatus(message, type = '') {
+    console.log(`状态更新: ${message}`);
+    if (connectionStatus) {
+      connectionStatus.textContent = message;
+      connectionStatus.className = type;
+    }
+    
+    // 添加到日志
+    addLog('状态', message);
+  }
+  
+  // 更新服务器状态
+  function updateServerStatus(message, type = '') {
+    console.log(`服务器状态: ${message}`);
+    if (serverStatus) {
+      serverStatus.textContent = message;
+      serverStatus.className = type;
+    }
+    
+    // 添加到日志
+    addLog('服务器', message);
+  }
+  
+  // 更新音频状态
+  function updateAudioStatus(message, type = '') {
+    console.log(`音频状态更新: ${message}`);
+    if (audioStatus) {
+      audioStatus.textContent = message;
+      audioStatus.className = type;
+    }
+    
+    // 添加到日志
+    addLog('音频', message);
+  }
+  
+  updateStatus('正在初始化组件...');
+  updateServerStatus('等待连接');
+  
+  // 导入摄像头管理器 - 优先使用 Kinect
+  let cameraManager;
+  try {
+    addLog('系统', '开始初始化摄像头...');
+    console.log('尝试初始化 Kinect 摄像头管理器...');
+    updateStatus('正在检测 Kinect 设备...');
+    
+    // 导入 Kinect 摄像头管理器
+    const { KinectCameraManager } = require('./kinect-camera');
+    
+    // 初始化 Kinect 摄像头
+    cameraManager = await KinectCameraManager.initialize();
+    
+    // 判断是否使用了 Kinect
+    if (cameraManager.isKinectMode) {
+      console.log('Kinect 摄像头初始化完成');
+      updateStatus('Kinect 摄像头初始化完成', 'success');
+      addLog('系统', 'Kinect 摄像头初始化完成');
+      
+      // 显示 Kinect 控制区域
+      kinectControlsDiv.style.display = 'flex';
+      
+      // 设置点云开关事件
+      pointCloudToggle.addEventListener('click', () => {
+        const isEnabled = pointCloudToggle.textContent === '启用点云';
+        pointCloudToggle.textContent = isEnabled ? '禁用点云' : '启用点云';
+        cameraManager.togglePointCloud(isEnabled);
+        addLog('Kinect', `点云模式已${isEnabled ? '启用' : '禁用'}`);
+      });
+    } else {
+      console.log('未检测到 Kinect 设备，使用标准摄像头');
+      updateStatus('未检测到 Kinect 设备，使用标准摄像头');
+      addLog('系统', '未检测到 Kinect 设备，使用标准摄像头');
+    }
+  } catch (error) {
+    console.error('初始化摄像头管理器失败:', error);
+    updateStatus('摄像头模块加载失败，可能会使用模拟模式', 'error');
+    addLog('错误', `摄像头初始化失败: ${error.message}`);
+    
+    // 尝试回退到标准摄像头
+    try {
+      console.log('尝试回退到标准摄像头...');
+      const { CameraManager } = require('./camera');
+      cameraManager = await CameraManager.initialize();
+      console.log('标准摄像头初始化完成');
+      updateStatus('标准摄像头初始化完成');
+      addLog('系统', '标准摄像头初始化完成');
+    } catch (fallbackError) {
+      console.error('回退到标准摄像头失败:', fallbackError);
+      addLog('错误', `回退到标准摄像头失败: ${fallbackError.message}`);
+    }
+  }
+  
+  // 确保摄像头已初始化
+  if (!cameraManager) {
+    addLog('错误', '无法创建摄像头管理器');
+    updateStatus('无法创建摄像头管理器，程序无法继续', 'error');
+    return;
+  }
+  
+  // 初始化摄像头设备
+  cameraManager.initialize();
+  
+  // 初始化WebRTC管理器
+  let webrtcManager;
+  try {
+    console.log('创建WebRTCManager...');
+    webrtcManager = new WebRTCManager();
+    
+    // 覆盖WebRTCManager的日志方法，添加到调试面板
+    const originalLog = webrtcManager.log;
+    webrtcManager.log = function(message, data) {
+      originalLog.call(this, message, data);
+      if (data) {
+        let dataStr = '';
+        try {
+          dataStr = typeof data === 'string' ? data : JSON.stringify(data);
+          if (dataStr.length > 200) {
+            dataStr = dataStr.substring(0, 200) + '...';
+          }
+        } catch (e) {
+          dataStr = '[无法序列化的数据]';
+        }
+        addLog('WebRTC', `${message} - ${dataStr}`);
+      } else {
+        addLog('WebRTC', message);
+      }
+    };
+    
+    const originalError = webrtcManager.error;
+    webrtcManager.error = function(message, error) {
+      originalError.call(this, message, error);
+      addLog('错误', `${message} - ${error && error.message ? error.message : error}`);
+    };
+    
+    console.log('WebRTCManager创建完成');
+    addLog('系统', 'WebRTC管理器创建完成');
+  } catch (error) {
+    console.error('初始化WebRTCManager失败:', error);
+    updateStatus('WebRTC模块加载失败', 'error');
+    addLog('错误', `WebRTC模块加载失败: ${error.message}`);
+    return; // 如果WebRTC不可用，应用无法继续
+  }
+  
+  updateStatus('应用已初始化，准备连接');
+  addLog('系统', '应用已初始化完成，等待用户操作');
+  
+  // 向主进程发送状态更新（使用preload脚本提供的API）
+  if (window.electronAPI) {
+    window.electronAPI.sendStatus('应用已初始化');
+  }
+  
+  // 设置本地测试按钮点击事件
+  if (localTestButton) {
+    localTestButton.addEventListener('click', () => {
+      console.log('启动本地测试模式');
+      updateStatus('启动本地测试模式...', 'warning');
+      addLog('系统', '用户点击了本地测试按钮');
+      
+      // 设置默认值
+      roomIdInput.value = roomIdInput.value || '测试房间';
+      userIdInput.value = userIdInput.value || '本地用户';
+      serverUrlInput.value = 'http://localhost:3001';
+      
+      // 启动本地测试模式
+      initializeLocalTest();
+    });
+  }
+  
+  // 本地测试初始化函数
+  async function initializeLocalTest() {
+    try {
+      // 确保摄像头管理器已初始化
+      if (!cameraManager) {
+        console.warn('摄像头管理器未初始化，尝试重新初始化');
+        updateStatus('正在重新初始化摄像头设备...', 'warning');
+        addLog('系统', '尝试重新初始化摄像头管理器');
+        try {
+          // 尝试初始化 Kinect 摄像头
+          const { KinectCameraManager } = require('./kinect-camera');
+          cameraManager = await KinectCameraManager.initialize();
+          
+          // 如果使用 Kinect，显示控制区域
+          if (cameraManager.isKinectMode) {
+            kinectControlsDiv.style.display = 'flex';
+            addLog('系统', 'Kinect 设备已连接');
+          }
+        } catch (error) {
+          console.error('重新初始化摄像头管理器失败:', error);
+          updateStatus('摄像头初始化失败，无法继续', 'error');
+          addLog('错误', `摄像头重新初始化失败: ${error.message}`);
+          return;
+        }
+      }
+      
+      // 启动摄像头流
+      updateStatus('正在启动摄像头流...', 'warning');
+      cameraManager.startStreaming((frameData) => {
+        // 这里可以处理每一帧数据，例如显示帧率等
+        if (debugMode) {
+          // 只在调试模式显示帧数据，避免刷屏
+          // addLog('摄像头', `接收到帧数据: ${frameData.width}x${frameData.height}`);
+        }
+      });
+      
+      // 更新状态
+      updateStatus('摄像头流已启动，等待用户操作', 'success');
+      addLog('系统', `摄像头流已启动 (${cameraManager.isKinectMode ? 'Kinect' : '标准摄像头'})`);
+      
+      // 启用控制按钮
+      if (muteButton) muteButton.disabled = false;
+      if (volumeSlider) volumeSlider.disabled = false;
+      if (cameraToggle) cameraToggle.disabled = false;
+      
+      // 连接到本地服务器
+      await initializeSession(roomIdInput.value, userIdInput.value, serverUrlInput.value);
+    } catch (error) {
+      console.error('本地测试模式初始化失败:', error);
+      updateStatus('本地测试模式初始化失败', 'error');
+      addLog('错误', `本地测试初始化失败: ${error.message}`);
+    }
+  }
+  
+  // 设置连接按钮点击事件
+  if (connectButton) {
+    connectButton.addEventListener('click', async () => {
+      const roomId = roomIdInput.value.trim();
+      const userId = userIdInput.value.trim();
+      const serverUrl = serverUrlInput.value.trim();
+      
+      if (!roomId || !userId) {
+        updateStatus('请输入房间ID和用户名', 'error');
+        addLog('错误', '房间ID或用户名为空');
+        return;
+      }
+      
+      if (!serverUrl) {
+        updateServerStatus('请输入有效的服务器地址', 'error');
+        addLog('错误', '服务器地址为空');
+        return;
+      }
+      
+      // 验证服务器URL格式
+      try {
+        new URL(serverUrl);
+      } catch (e) {
+        updateServerStatus('服务器地址格式无效', 'error');
+        addLog('错误', `服务器地址格式无效: ${e.message}`);
+        return;
+      }
+      
+      // 确保摄像头流已启动
+      if (!cameraManager.isRunning) {
+        updateStatus('正在启动摄像头流...', 'warning');
+        cameraManager.startStreaming((frameData) => {
+          // 帧处理回调
+          if (debugMode) {
+            // 调试模式下可以显示帧信息
+          }
+        });
+      }
+      
+      await initializeSession(roomId, userId, serverUrl);
+    });
+  }
+  
+  // 设置静音按钮点击事件
+  if (muteButton) {
+    muteButton.addEventListener('click', () => {
+      if (!webrtcManager.localStream) {
+        addLog('错误', '无法控制音频：本地媒体流不可用');
+        return;
+      }
+      
+      isMuted = webrtcManager.toggleMute();
+      muteButton.textContent = isMuted ? '取消静音' : '静音';
+      addLog('音频', isMuted ? '已静音' : '已取消静音');
+    });
+  }
+  
+  // 设置摄像头开关按钮点击事件
+  if (cameraToggle) {
+    cameraToggle.addEventListener('click', () => {
+      if (!webrtcManager.localStream) {
+        addLog('错误', '无法控制视频：本地媒体流不可用');
+        return;
+      }
+      
+      isCameraOff = webrtcManager.toggleCamera();
+      cameraToggle.textContent = isCameraOff ? '开启摄像头' : '关闭摄像头';
+      addLog('视频', isCameraOff ? '摄像头已关闭' : '摄像头已开启');
+    });
+  }
+  
+  // 设置音量滑块变化事件
+  if (volumeSlider) {
+    volumeSlider.addEventListener('input', () => {
+      const volume = parseFloat(volumeSlider.value);
+      webrtcManager.setVolume(volume);
+      addLog('音频', `音量已设置为 ${Math.round(volume * 100)}%`);
+    });
+  }
+  
+  // 初始化WebRTC会话
+  async function initializeSession(roomId, userId, serverUrl) {
+    try {
+      updateStatus('正在初始化会话...', 'warning');
+      updateServerStatus(`正在连接到 ${serverUrl}`, 'warning');
+      addLog('系统', `正在初始化WebRTC会话，房间ID: ${roomId}, 用户ID: ${userId}`);
+      
+      // 禁用连接按钮，避免重复点击
+      if (connectButton) {
+        connectButton.disabled = true;
+      }
+      
+      // 初始化WebRTC管理器
+      webrtcManager.init(userId, serverUrl);
+      
+      // 获取本地媒体流
+      updateStatus('正在获取媒体流...', 'warning');
+      addLog('系统', '获取本地媒体流中...');
+      const localStream = await webrtcManager.getLocalStream(cameraManager);
+      
+      if (!localStream) {
+        updateStatus('无法获取媒体流，请检查摄像头和麦克风权限', 'error');
+        addLog('错误', '无法获取本地媒体流');
+        if (connectButton) {
+          connectButton.disabled = false;
+        }
+        return;
+      }
+      
+      addLog('系统', '成功获取本地媒体流');
+      
+      // 启用音频控制按钮
+      if (muteButton) {
+        muteButton.disabled = false;
+      }
+      
+      if (volumeSlider) {
+        volumeSlider.disabled = false;
+      }
+      
+      if (cameraToggle) {
+        cameraToggle.disabled = false;
+      }
+      
+      // 设置回调函数
+      webrtcManager.setCallbacks({
+        onConnected: () => {
+          updateStatus('已连接到远程用户', 'success');
+          addLog('连接', '已成功连接到远程用户');
+        },
+        onDisconnected: () => {
+          updateStatus('与远程用户断开连接');
+          addLog('连接', '与远程用户断开连接');
+          
+          // 重新启用连接按钮
+          if (connectButton) {
+            connectButton.disabled = false;
+          }
+        },
+        onRemoteStream: (stream) => {
+          console.log('收到远程媒体流');
+          addLog('媒体', '收到远程媒体流');
+          
+          // 远程视频元素在WebRTCManager中处理
+        },
+        onError: (error) => {
+          console.error('WebRTC错误:', error);
+          updateStatus(`连接错误: ${error.message}`, 'error');
+          addLog('错误', `WebRTC错误: ${error.message}`);
+          
+          // 重新启用连接按钮
+          if (connectButton) {
+            connectButton.disabled = false;
+          }
+        }
+      });
+      
+      // 加入房间
+      webrtcManager.joinRoom(roomId);
+      
+      updateStatus(`正在连接到房间 ${roomId}...`, 'warning');
+      addLog('系统', `已发送加入房间请求: ${roomId}`);
+    } catch (error) {
+      console.error('初始化会话失败:', error);
+      updateStatus(`初始化会话失败: ${error.message}`, 'error');
+      addLog('错误', `初始化会话失败: ${error.message}`);
+      
+      if (connectButton) {
+        connectButton.disabled = false;
+      }
+    }
+  }
+  
+  // 处理页面卸载事件，关闭连接
+  window.addEventListener('beforeunload', () => {
+    console.log('页面即将卸载，关闭所有资源...');
+    addLog('系统', '正在关闭应用...');
+    
+    if (webrtcManager) {
+      webrtcManager.close();
+    }
+    
+    if (cameraManager) {
+      // 关闭摄像头资源
+      cameraManager.close();
+      
+      // 如果是 Kinect 模式，确保 Kinect 设备被正确关闭
+      if (cameraManager.isKinectMode && cameraManager.kinect) {
+        try {
+          console.log('关闭 Kinect 设备...');
+          if (cameraManager.kinect.isListening) {
+            cameraManager.kinect.stopListening();
+          }
+          cameraManager.kinect.close();
+        } catch (error) {
+          console.error('关闭 Kinect 设备时出错:', error);
+        }
+      }
+    }
+    
+    console.log('所有资源已关闭');
+  });
+}); 
