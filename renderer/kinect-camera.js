@@ -18,6 +18,18 @@ try {
 // 导入标准摄像头作为备选
 const { CameraManager } = require('./camera');
 
+// 导入THREE.js (如果通过CDN加载，这里可以省略)
+let THREE = null;
+try {
+  THREE = window.THREE;
+  if (!THREE) {
+    console.warn('THREE.js库未通过全局变量找到，尝试使用require导入');
+    THREE = require('three');
+  }
+} catch (error) {
+  console.warn('THREE.js库加载失败，可能会影响点云功能', error);
+}
+
 // KinectCameraManager 类 - 负责管理 Kinect 摄像头或回退到标准摄像头
 class KinectCameraManager {
   // 静态初始化方法，返回 Promise
@@ -50,12 +62,25 @@ class KinectCameraManager {
     this.animationFrameId = null;
     
     // 点云相关属性
+    this.viewMode = 'color'; // 'color' 或 'pointCloud'
     this.pointCloudCanvas = null;
     this.pointCloudEnabled = false;
     this.threeJsRenderer = null;
     this.threeJsScene = null;
     this.threeJsCamera = null;
+    this.threeJsControls = null;
     this.pointCloud = null;
+    this.lastDepthData = null;
+    this.lastColorData = null;
+    this.depthModeRange = null;
+    
+    // 绑定模式切换事件
+    const viewModeSelect = document.getElementById('viewModeSelect');
+    if (viewModeSelect) {
+      viewModeSelect.addEventListener('change', (event) => {
+        this.setViewMode(event.target.value);
+      });
+    }
   }
   
   // 检测 Kinect 设备
@@ -76,6 +101,13 @@ class KinectCameraManager {
       if (isOpen) {
         console.log('Kinect 设备已成功打开');
         this.isKinectMode = true;
+        
+        // 显示 Kinect 控制区域
+        const kinectControls = document.getElementById('kinectControls');
+        if (kinectControls) {
+          kinectControls.style.display = 'flex';
+        }
+        
         return true;
       } else {
         console.warn('Kinect 设备无法打开，将使用标准摄像头');
@@ -111,7 +143,7 @@ class KinectCameraManager {
     }
     
     // 如果要启用点云，创建点云 Canvas
-    if (this.pointCloudEnabled) {
+    if (this.viewMode === 'pointCloud') {
       this.setupPointCloudCanvas();
     }
     
@@ -122,9 +154,28 @@ class KinectCameraManager {
     return true;
   }
   
+  // 设置视图模式
+  setViewMode(mode) {
+    if (mode !== 'color' && mode !== 'pointCloud') {
+      console.error('无效的视图模式:', mode);
+      return;
+    }
+    
+    console.log(`切换视图模式: ${mode}`);
+    this.viewMode = mode;
+    this.pointCloudEnabled = (mode === 'pointCloud');
+    
+    // 重新启动摄像头流以应用更改
+    if (this.isRunning && this.isKinectMode) {
+      this.close();
+      this.initialize();
+      this.startStreaming(this.onFrameCallback);
+    }
+  }
+  
   // 启动摄像头流
   async startStreaming(onFrameCallback) {
-    console.log(`启动摄像头流 - 模式: ${this.isKinectMode ? 'Kinect' : '标准'}`);
+    console.log(`启动摄像头流 - 模式: ${this.isKinectMode ? 'Kinect' : '标准'}, 视图: ${this.viewMode}`);
     this.onFrameCallback = onFrameCallback;
     
     // 检查是否已经运行
@@ -150,23 +201,26 @@ class KinectCameraManager {
         camera_fps: KinectAzure.K4A_FRAMES_PER_SECOND_30,
         depth_mode: KinectAzure.K4A_DEPTH_MODE_NFOV_UNBINNED,
         synchronized_images_only: true,
+        include_color_to_depth: true,
         flip_BGRA_to_RGBA: true
       });
       
-      // 根据是否需要点云来设置相应的处理方式
-      if (this.pointCloudEnabled) {
+      // 获取深度模式范围
+      this.depthModeRange = this.kinect.getDepthModeRange(KinectAzure.K4A_DEPTH_MODE_NFOV_UNBINNED);
+      
+      // 根据视图模式来设置相应的处理方式
+      if (this.viewMode === 'pointCloud') {
         this.setupPointCloud();
-        
-        // 启动监听
-        this.kinect.startListening((data) => {
-          this.processKinectFrameWithPointCloud(data);
-        });
-      } else {
-        // 启动监听，仅处理彩色图像
-        this.kinect.startListening((data) => {
-          this.processKinectFrame(data);
-        });
       }
+      
+      // 启动监听
+      this.kinect.startListening((data) => {
+        if (this.viewMode === 'color') {
+          this.processKinectFrame(data);
+        } else if (this.viewMode === 'pointCloud') {
+          this.processKinectFrameWithPointCloud(data);
+        }
+      });
       
       this.isRunning = true;
       return true;
@@ -211,43 +265,55 @@ class KinectCameraManager {
   
   // 设置点云 Canvas
   setupPointCloudCanvas() {
-    // 创建一个新的 Canvas 用于点云渲染
-    this.pointCloudCanvas = document.createElement('canvas');
-    this.pointCloudCanvas.width = 640;
-    this.pointCloudCanvas.height = 480;
-    this.pointCloudCanvas.style.display = 'none';
-    document.body.appendChild(this.pointCloudCanvas);
-    
-    // 初始化 Three.js
-    const THREE = require('three');
-    
-    // 场景
+    if (!THREE) {
+      console.error('THREE.js库未加载，无法设置点云Canvas');
+      return;
+    }
+
+    // 创建场景和摄像机
     this.threeJsScene = new THREE.Scene();
     
+    // 使用与colorCanvas相同尺寸
+    const width = this.colorCanvas.width || 640;
+    const height = this.colorCanvas.height || 480;
+    
     // 摄像机
-    this.threeJsCamera = new THREE.PerspectiveCamera(30, this.pointCloudCanvas.width / this.pointCloudCanvas.height, 1, 10000);
+    this.threeJsCamera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
     this.threeJsCamera.position.set(0, 0, 2000);
     this.threeJsCamera.lookAt(0, 0, 0);
     
     // 渲染器
     this.threeJsRenderer = new THREE.WebGLRenderer({
-      canvas: this.pointCloudCanvas,
+      canvas: this.colorCanvas,
       alpha: true
     });
-    this.threeJsRenderer.setSize(this.pointCloudCanvas.width, this.pointCloudCanvas.height);
+    this.threeJsRenderer.setSize(width, height);
+    
+    // 添加轨道控制器
+    if (window.THREE && window.THREE.OrbitControls) {
+      this.threeJsControls = new window.THREE.OrbitControls(this.threeJsCamera, this.colorCanvas);
+    } else {
+      console.warn('THREE.OrbitControls未找到，将禁用3D视图控制');
+    }
   }
   
   // 设置点云 
   setupPointCloud() {
-    const THREE = require('three');
+    if (!THREE) {
+      console.error('THREE.js库未加载，无法设置点云');
+      return;
+    }
     
-    // 创建点几何体
-    const geometry = new THREE.BufferGeometry();
+    // 首先设置Canvas
+    this.setupPointCloudCanvas();
     
     // 深度图尺寸
     const DEPTH_WIDTH = 640;
     const DEPTH_HEIGHT = 576;
     const numPoints = DEPTH_WIDTH * DEPTH_HEIGHT;
+    
+    // 创建几何体
+    const geometry = new THREE.BufferGeometry();
     
     // 创建位置和颜色缓冲区
     const positions = new Float32Array(numPoints * 3);
@@ -281,75 +347,104 @@ class KinectCameraManager {
     this.pointCloud = new THREE.Points(geometry, material);
     this.threeJsScene.add(this.pointCloud);
     
-    // 获取深度模式范围
-    this.depthModeRange = this.kinect.getDepthModeRange(KinectAzure.K4A_DEPTH_MODE_NFOV_UNBINNED);
-    
     // 开始渲染循环
     this.animatePointCloud();
   }
   
   // 渲染点云动画
   animatePointCloud() {
+    if (!this.threeJsRenderer || !this.threeJsScene || !this.threeJsCamera) {
+      return;
+    }
+    
     const animate = () => {
-      requestAnimationFrame(animate);
+      if (this.viewMode !== 'pointCloud') {
+        return;
+      }
+      
+      this.animationFrameId = requestAnimationFrame(animate);
+      
+      if (this.threeJsControls) {
+        this.threeJsControls.update();
+      }
+      
       this.threeJsRenderer.render(this.threeJsScene, this.threeJsCamera);
+      
+      // 调用回调函数
+      if (this.onFrameCallback) {
+        this.onFrameCallback(this.colorCanvas);
+      }
     };
+    
     animate();
   }
   
   // 处理 Kinect 帧 (带点云)
   processKinectFrameWithPointCloud(data) {
-    // 处理彩色图像
-    this.processKinectFrame(data);
+    if (!this.pointCloud || !this.threeJsRenderer) {
+      console.warn('点云未初始化，无法处理帧');
+      return;
+    }
     
-    // 处理点云
-    if (data.depthImageFrame && data.colorToDepthImageFrame) {
-      const positions = this.pointCloud.geometry.attributes.position.array;
-      const colors = this.pointCloud.geometry.attributes.color.array;
+    // 确保有深度和颜色数据
+    if (!data.depthImageFrame || !data.colorToDepthImageFrame) {
+      return;
+    }
+    
+    // 处理数据
+    const depthData = Buffer.from(data.depthImageFrame.imageData);
+    const colorData = Buffer.from(data.colorToDepthImageFrame.imageData);
+    
+    this.lastDepthData = depthData;
+    this.lastColorData = colorData;
+    
+    // 更新点云
+    this.updatePointCloud(depthData, colorData);
+  }
+  
+  // 更新点云数据
+  updatePointCloud(depthData, colorData) {
+    if (!this.pointCloud || !this.depthModeRange) {
+      return;
+    }
+    
+    const positions = this.pointCloud.geometry.attributes.position.array;
+    const colors = this.pointCloud.geometry.attributes.color.array;
+    
+    // 读取深度和颜色数据
+    for (let i = 0, j = 0; i < depthData.length; i += 2, j += 3) {
+      const depthValue = depthData[i + 1] << 8 | depthData[i];
       
-      const depthData = Buffer.from(data.depthImageFrame.imageData);
-      const colorData = Buffer.from(data.colorToDepthImageFrame.imageData);
+      const colorIndex = j / 3 * 4;
+      const b = colorData[colorIndex + 0] / 255;
+      const g = colorData[colorIndex + 1] / 255;
+      const r = colorData[colorIndex + 2] / 255;
       
-      for (let i = 0, j = 0; i < depthData.length; i += 2, j += 3) {
-        const depthValue = depthData[i + 1] << 8 | depthData[i];
+      if (depthValue > this.depthModeRange.min && depthValue < this.depthModeRange.max) {
+        positions[j + 2] = depthValue;
         
-        const colorIndex = j / 3 * 4;
-        const b = colorData[colorIndex + 0] / 255;
-        const g = colorData[colorIndex + 1] / 255;
-        const r = colorData[colorIndex + 2] / 255;
+        colors[j] = r;
+        colors[j + 1] = g;
+        colors[j + 2] = b;
+      } else {
+        positions[j + 2] = Number.MAX_VALUE;
         
-        if (depthValue > this.depthModeRange.min && depthValue < this.depthModeRange.max) {
-          positions[j + 2] = depthValue;
-          
-          colors[j] = r;
-          colors[j + 1] = g;
-          colors[j + 2] = b;
-        } else {
-          positions[j + 2] = Number.MAX_VALUE;
-          
-          colors[j] = 0;
-          colors[j + 1] = 0;
-          colors[j + 2] = 0;
-        }
-      }
-      
-      this.pointCloud.geometry.attributes.position.needsUpdate = true;
-      this.pointCloud.geometry.attributes.color.needsUpdate = true;
-      
-      // 混合彩色图像和点云
-      if (this.pointCloudEnabled) {
-        // 绘制点云到颜色画布上
-        this.colorCtx.drawImage(this.pointCloudCanvas, 0, 0);
+        colors[j] = 0;
+        colors[j + 1] = 0;
+        colors[j + 2] = 0;
       }
     }
+    
+    this.pointCloud.geometry.attributes.position.needsUpdate = true;
+    this.pointCloud.geometry.attributes.color.needsUpdate = true;
   }
   
   // 绘制测试图案
   drawTestPattern() {
     if (!this.colorCtx) return;
     
-    const width = this.colorCanvas.width;
-    const height = this.colorCanvas.height;
+    const width = this.colorCanvas.width || 640;
+    const height = this.colorCanvas.height || 480;
     
     // 绘制渐变背景
     const gradient = this.colorCtx.createLinearGradient(0, 0, width, height);
@@ -377,26 +472,6 @@ class KinectCameraManager {
     this.colorCtx.fill();
   }
   
-  // 启用/禁用点云
-  togglePointCloud(enabled) {
-    // 只有在 Kinect 模式下才能切换点云
-    if (!this.isKinectMode || !this.kinect) {
-      console.warn('只有在 Kinect 模式下才能切换点云');
-      return false;
-    }
-    
-    this.pointCloudEnabled = enabled;
-    
-    // 需要重新启动摄像头流以应用更改
-    if (this.isRunning) {
-      this.close();
-      this.initialize();
-      this.startStreaming(this.onFrameCallback);
-    }
-    
-    return true;
-  }
-  
   // 关闭资源
   close() {
     console.log('关闭摄像头资源');
@@ -419,9 +494,9 @@ class KinectCameraManager {
       this.animationFrameId = null;
     }
     
-    if (this.pointCloudCanvas) {
-      document.body.removeChild(this.pointCloudCanvas);
-      this.pointCloudCanvas = null;
+    if (this.threeJsControls) {
+      this.threeJsControls.dispose();
+      this.threeJsControls = null;
     }
     
     this.isRunning = false;

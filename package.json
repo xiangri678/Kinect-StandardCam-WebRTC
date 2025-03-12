@@ -9,10 +9,11 @@
   "author": "Web Camera Edition",
   "license": "MIT",
   "dependencies": {
+    "simple-peer": "^9.11.1",
     "socket.io": "^4.7.2",
     "socket.io-client": "^4.7.2",
-    "simple-peer": "^9.11.1",
-    "three": "^0.158.0"
+    "three": "^0.158.0",
+    "three-orbitcontrols": "^2.110.2"
   },
   "optionalDependencies": {
     "kinect-azure": "^0.4.0"
@@ -20,4 +21,4 @@
   "devDependencies": {
     "electron": "^20.0.0"
   }
-} 
+}

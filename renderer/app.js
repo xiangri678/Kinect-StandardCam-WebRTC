@@ -23,32 +23,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const logsContainer = document.getElementById('logs');
   
   // Kinect 相关控制元素
-  const kinectControlsDiv = document.getElementById('kinectControls') || document.createElement('div');
-  const pointCloudToggle = document.createElement('button');
-  pointCloudToggle.id = 'pointCloudToggle';
-  pointCloudToggle.textContent = '启用点云';
-  pointCloudToggle.classList.add('btn', 'btn-info', 'mx-2');
-  
-  // 如果不存在 kinectControlsDiv，创建并添加
-  if (!document.getElementById('kinectControls')) {
-    kinectControlsDiv.id = 'kinectControls';
-    kinectControlsDiv.classList.add('controls-row', 'mt-2');
-    kinectControlsDiv.style.display = 'none'; // 初始隐藏
-    
-    // 添加标题
-    const kinectLabel = document.createElement('span');
-    kinectLabel.textContent = 'Kinect 控制: ';
-    kinectControlsDiv.appendChild(kinectLabel);
-    
-    // 添加点云开关
-    kinectControlsDiv.appendChild(pointCloudToggle);
-    
-    // 添加到控制面板
-    const controlsContainer = document.querySelector('.controls-container');
-    if (controlsContainer) {
-      controlsContainer.appendChild(kinectControlsDiv);
-    }
-  }
+  const kinectControlsDiv = document.getElementById('kinectControls');
+  const viewModeSelect = document.getElementById('viewModeSelect');
   
   // 默认服务器URL
   if (!serverUrlInput.value) {
@@ -152,15 +128,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       addLog('系统', 'Kinect 摄像头初始化完成');
       
       // 显示 Kinect 控制区域
-      kinectControlsDiv.style.display = 'flex';
+      if (kinectControlsDiv) {
+        kinectControlsDiv.style.display = 'flex';
+      }
       
-      // 设置点云开关事件
-      pointCloudToggle.addEventListener('click', () => {
-        const isEnabled = pointCloudToggle.textContent === '启用点云';
-        pointCloudToggle.textContent = isEnabled ? '禁用点云' : '启用点云';
-        cameraManager.togglePointCloud(isEnabled);
-        addLog('Kinect', `点云模式已${isEnabled ? '启用' : '禁用'}`);
-      });
+      // 设置视图模式选择事件
+      if (viewModeSelect) {
+        viewModeSelect.addEventListener('change', () => {
+          const selectedMode = viewModeSelect.value;
+          addLog('Kinect', `视图模式已切换到: ${selectedMode === 'color' ? '彩色视频' : '彩色点云'}`);
+        });
+      }
     } else {
       console.log('未检测到 Kinect 设备，使用标准摄像头');
       updateStatus('未检测到 Kinect 设备，使用标准摄像头');
@@ -275,7 +253,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           cameraManager = await KinectCameraManager.initialize();
           
           // 如果使用 Kinect，显示控制区域
-          if (cameraManager.isKinectMode) {
+          if (cameraManager.isKinectMode && kinectControlsDiv) {
             kinectControlsDiv.style.display = 'flex';
             addLog('系统', 'Kinect 设备已连接');
           }

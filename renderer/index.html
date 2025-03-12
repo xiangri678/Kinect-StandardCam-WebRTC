@@ -48,13 +48,15 @@
       }
 
       input,
-      button {
+      button,
+      select {
         padding: 0.4rem;
         border: 1px solid #ddd;
         border-radius: 3px;
       }
 
-      input {
+      input,
+      select {
         flex: 1;
         min-width: 100px;
       }
@@ -140,6 +142,7 @@
         border-radius: 5px;
         overflow: hidden;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        position: relative;
       }
 
       .video-box h3 {
@@ -299,7 +302,10 @@
         <!-- Kinect 控制区域，在检测到 Kinect 时通过 JavaScript 显示 -->
         <div class="kinect-controls" id="kinectControls" style="display: none">
           <span>Kinect 控制:</span>
-          <button id="pointCloudToggle" class="btn btn-info">启用点云</button>
+          <select id="viewModeSelect">
+            <option value="color">彩色视频</option>
+            <option value="pointCloud">彩色点云</option>
+          </select>
         </div>
       </div>
 
@@ -323,6 +329,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-peer/9.11.1/simplepeer.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/controls/OrbitControls.js"></script>
     <script src="webrtc.js"></script>
     <script src="app.js"></script>
   </body>
