@@ -1,4 +1,4 @@
-# Kinect-StandardCam-WebRTC 系统说明报告
+# I3DCS：Kinect-StandardCam-WebRTC 系统设计报告与使用指南
 
 ## 1. 项目概述
 
