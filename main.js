@@ -113,7 +113,7 @@ function createWindow() {
   mainWindow.loadFile(indexPath);
 
   // 打开开发者工具，用于调试
-  mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
   
   // 监听页面加载状态
   mainWindow.webContents.on('did-finish-load', () => {
@@ -211,8 +211,7 @@ app.whenReady().then(() => {
 
 // 当所有窗口关闭时退出应用
 app.on('window-all-closed', () => {
-  // 在macOS上，用户通常希望应用程序及其菜单栏保持活动状态，直到用户使用Cmd + Q明确退出
-  if (process.platform !== 'darwin') app.quit();
+  app.quit();
 });
 
 // IPC通信

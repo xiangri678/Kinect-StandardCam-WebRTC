@@ -7,9 +7,20 @@ let KinectAzure = null;
 let kinectAvailable = false;
 
 try {
-  KinectAzure = require('kinect-azure');
-  kinectAvailable = true;
-  console.log('Kinect Azure 库已成功加载');
+  // 检查平台 - Kinect仅在Windows上可用
+  const isWindows = typeof window !== 'undefined' && 
+                   window.navigator && 
+                   window.navigator.platform && 
+                   (window.navigator.platform.indexOf('Win') >= 0);
+  
+  if (isWindows) {
+    KinectAzure = require('kinect-azure');
+    kinectAvailable = true;
+    console.log('Kinect Azure 库已成功加载');
+  } else {
+    console.log('非Windows平台，Kinect Azure功能不可用');
+    kinectAvailable = false;
+  }
 } catch (error) {
   console.warn('Kinect Azure 库加载失败，将使用标准摄像头', error);
   kinectAvailable = false;
@@ -85,16 +96,17 @@ class KinectCameraManager {
   
   // 检测 Kinect 设备
   async detectKinect() {
-    if (!kinectAvailable) {
-      console.log('Kinect Azure 库不可用，将使用标准摄像头');
-      this.isKinectMode = false;
-      
-      // 初始化标准摄像头
-      this.standardCamera = await CameraManager.initialize();
-      return false;
-    }
-    
     try {
+      if (!kinectAvailable) {
+        console.log('Kinect Azure 库不可用，将使用标准摄像头');
+        this.isKinectMode = false;
+        
+        // 初始化标准摄像头
+        this.standardCamera = await CameraManager.initialize();
+        return false;
+      }
+      
+      // 确保安全地尝试创建Kinect实例
       this.kinect = new KinectAzure();
       const isOpen = this.kinect.open();
       
@@ -121,8 +133,13 @@ class KinectCameraManager {
       console.error('Kinect 设备初始化失败:', error);
       this.isKinectMode = false;
       
-      // 初始化标准摄像头
-      this.standardCamera = await CameraManager.initialize();
+      try {
+        // 初始化标准摄像头
+        this.standardCamera = await CameraManager.initialize();
+      } catch (camError) {
+        console.error('标准摄像头初始化失败:', camError);
+      }
+      
       return false;
     }
   }
@@ -144,7 +161,7 @@ class KinectCameraManager {
     
     // 如果要启用点云，创建点云 Canvas
     if (this.viewMode === 'pointCloud') {
-      this.setupPointCloudCanvas();
+      this.setupPointCloud();
     }
     
     // 绘制测试图案
@@ -161,16 +178,138 @@ class KinectCameraManager {
       return;
     }
     
+    // 如果点云模式不可用，则强制使用彩色模式
+    if (mode === 'pointCloud' && (!THREE || !this.checkWebGLSupport())) {
+      console.error('点云模式不可用: THREE.js库未加载或WebGL不受支持');
+      alert('点云模式不可用: 您的浏览器可能不支持WebGL或THREE.js库未正确加载');
+      
+      // 更新视图模式选择器
+      const viewModeSelect = document.getElementById('viewModeSelect');
+      if (viewModeSelect) {
+        viewModeSelect.value = 'color';
+      }
+      return;
+    }
+    
     console.log(`切换视图模式: ${mode}`);
+    
+    // 如果已经处于该模式，则不做任何事情
+    if (this.viewMode === mode) {
+      return;
+    }
+    
+    // 停止渲染循环但不关闭设备
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    
+    // 记住旧的回调函数，用于后续重新应用
+    const previousCallback = this.onFrameCallback;
+    
+    // 检测是否为Mac系统
+    const isMac = navigator.platform.indexOf('Mac') !== -1;
+    console.log(`当前系统: ${isMac ? 'Mac OS' : '非Mac系统'}`);
+    
+    // 更新视图模式
     this.viewMode = mode;
     this.pointCloudEnabled = (mode === 'pointCloud');
     
-    // 重新启动摄像头流以应用更改
-    if (this.isRunning && this.isKinectMode) {
-      this.close();
-      this.initialize();
-      this.startStreaming(this.onFrameCallback);
+    // 模式切换 - 显示/隐藏相应的Canvas
+    if (mode === 'pointCloud') {
+      // 设置点云
+      try {
+        this.setupPointCloud();
+        
+        // Mac系统特殊处理 - 保持两个Canvas都可见，但使用z-index控制
+        if (isMac) {
+          console.log('Mac系统特殊处理：保持原始Canvas可见');
+          
+          // 调整原始Canvas，防止隐藏
+          if (this.colorCanvas) {
+            this.colorCanvas.style.display = 'block';
+            this.colorCanvas.style.position = 'absolute';
+            this.colorCanvas.style.zIndex = '1';
+          }
+          
+          // 调整点云Canvas
+          if (this.pointCloudCanvas) {
+            this.pointCloudCanvas.style.position = 'absolute';
+            this.pointCloudCanvas.style.zIndex = '2';
+            // 使用相同的样式以确保叠放正确
+            if (this.colorCanvas && this.colorCanvas.parentNode) {
+              const parentStyle = window.getComputedStyle(this.colorCanvas.parentNode);
+              this.pointCloudCanvas.style.top = this.colorCanvas.offsetTop + 'px';
+              this.pointCloudCanvas.style.left = this.colorCanvas.offsetLeft + 'px';
+            }
+          }
+        } else {
+          // 非Mac系统 - 隐藏彩色Canvas
+          if (this.colorCanvas) {
+            this.colorCanvas.style.display = 'none';
+          }
+        }
+        
+        // 如果之前有回调，确保点云Canvas也应用相同的回调
+        if (previousCallback && this.pointCloudCanvas) {
+          console.log('将回调函数应用到点云Canvas');
+          this.onFrameCallback = previousCallback;
+        }
+      } catch (e) {
+        console.error('设置点云模式失败:', e);
+        // 切回彩色模式
+        this.viewMode = 'color';
+        this.pointCloudEnabled = false;
+        
+        // 确保彩色Canvas可见
+        if (this.colorCanvas) {
+          this.colorCanvas.style.display = 'block';
+          this.colorCanvas.style.position = '';
+          this.colorCanvas.style.zIndex = '';
+        }
+        
+        // 清理点云资源
+        this.cleanupPointCloud();
+        
+        // 更新选择器
+        const viewModeSelect = document.getElementById('viewModeSelect');
+        if (viewModeSelect) {
+          viewModeSelect.value = 'color';
+        }
+        
+        // 恢复回调
+        this.onFrameCallback = previousCallback;
+        
+        return;
+      }
+    } else {
+      // 清理点云资源
+      this.cleanupPointCloud();
+      
+      // 恢复彩色Canvas样式
+      if (this.colorCanvas) {
+        this.colorCanvas.style.display = 'block';
+        // 移除可能添加的定位样式
+        if (isMac) {
+          this.colorCanvas.style.position = '';
+          this.colorCanvas.style.zIndex = '';
+        }
+      }
+      
+      // 恢复回调到彩色Canvas
+      this.onFrameCallback = previousCallback;
     }
+    
+    // 确保更新媒体流
+    setTimeout(() => {
+      this.updateMediaStream();
+      
+      // 向远程对等方发送模式切换通知 - 如果存在相关函数
+      if (window.notifyRemoteModeChange) {
+        console.log('通知远程用户模式已切换为:', mode);
+        window.notifyRemoteModeChange(mode);
+      }
+    }, 500); // 延迟500ms确保Canvas已经准备好
   }
   
   // 启动摄像头流
@@ -297,58 +436,295 @@ class KinectCameraManager {
     }
   }
   
-  // 设置点云 
+  // 设置点云 - 使用单独的Canvas元素
   setupPointCloud() {
     if (!THREE) {
       console.error('THREE.js库未加载，无法设置点云');
-      return;
+      throw new Error('THREE.js库未加载');
+    }
+
+    if (!this.checkWebGLSupport()) {
+      console.error('WebGL不被此浏览器支持，无法使用点云功能');
+      throw new Error('WebGL不支持');
     }
     
-    // 首先设置Canvas
-    this.setupPointCloudCanvas();
-    
-    // 深度图尺寸
-    const DEPTH_WIDTH = 640;
-    const DEPTH_HEIGHT = 576;
-    const numPoints = DEPTH_WIDTH * DEPTH_HEIGHT;
-    
-    // 创建几何体
-    const geometry = new THREE.BufferGeometry();
-    
-    // 创建位置和颜色缓冲区
-    const positions = new Float32Array(numPoints * 3);
-    const colors = new Float32Array(numPoints * 3);
-    
-    // 初始化点位置
-    for (let i = 0; i < numPoints; i++) {
-      const x = (i % DEPTH_WIDTH) - DEPTH_WIDTH * 0.5;
-      const y = DEPTH_HEIGHT / 2 - Math.floor(i / DEPTH_WIDTH);
+    try {
+      // 清理任何已存在的点云Canvas
+      this.cleanupPointCloud();
       
-      positions[i * 3] = x;
-      positions[i * 3 + 1] = y;
-      positions[i * 3 + 2] = 0;
+      // 创建新的Canvas元素用于点云
+      this.pointCloudCanvas = document.createElement('canvas');
+      this.pointCloudCanvas.width = 640;
+      this.pointCloudCanvas.height = 480;
+      this.pointCloudCanvas.style.display = 'block';
+      this.pointCloudCanvas.id = 'pointCloudCanvas'; // 添加ID便于调试
       
-      colors[i * 3] = 0;
-      colors[i * 3 + 1] = 0;
-      colors[i * 3 + 2] = 0;
+      // 将点云Canvas添加到DOM中，替换彩色Canvas的位置
+      if (this.colorCanvas && this.colorCanvas.parentNode) {
+        this.colorCanvas.parentNode.insertBefore(this.pointCloudCanvas, this.colorCanvas.nextSibling);
+      } else {
+        document.body.appendChild(this.pointCloudCanvas);
+      }
+      
+      // 创建Three.js场景
+      this.threeJsScene = new THREE.Scene();
+      
+      // 摄像机
+      const width = this.pointCloudCanvas.width;
+      const height = this.pointCloudCanvas.height;
+      this.threeJsCamera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
+      this.threeJsCamera.position.set(0, 0, 2000);
+      this.threeJsCamera.lookAt(0, 0, 0);
+      
+      // 渲染器 - 使用新创建的Canvas
+      this.threeJsRenderer = new THREE.WebGLRenderer({
+        canvas: this.pointCloudCanvas,
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: true // 确保可以从Canvas中读取数据
+      });
+      this.threeJsRenderer.setSize(width, height);
+      this.threeJsRenderer.setClearColor(0x000000, 0);
+      
+      // 添加轨道控制器
+      try {
+        // 尝试不同的可能位置来获取OrbitControls
+        const OrbitControls = 
+          (window.THREE && window.THREE.OrbitControls) || 
+          (THREE.OrbitControls) || 
+          (window.OrbitControls);
+        
+        if (OrbitControls) {
+          this.threeJsControls = new OrbitControls(this.threeJsCamera, this.pointCloudCanvas);
+          this.threeJsControls.enableDamping = true;
+          this.threeJsControls.dampingFactor = 0.25;
+        } else {
+          console.warn('未找到OrbitControls，3D视图将不可旋转');
+        }
+      } catch (error) {
+        console.warn('初始化OrbitControls失败:', error);
+      }
+      
+      // 深度图尺寸
+      const DEPTH_WIDTH = 640;
+      const DEPTH_HEIGHT = 576;
+      const numPoints = DEPTH_WIDTH * DEPTH_HEIGHT;
+      
+      // 创建几何体 - 使用BufferGeometry
+      const geometry = new THREE.BufferGeometry();
+      
+      // 创建位置和颜色缓冲区
+      const positions = new Float32Array(numPoints * 3);
+      const colors = new Float32Array(numPoints * 3);
+      
+      // 初始化点位置
+      for (let i = 0; i < numPoints; i++) {
+        const x = (i % DEPTH_WIDTH) - DEPTH_WIDTH * 0.5;
+        const y = DEPTH_HEIGHT / 2 - Math.floor(i / DEPTH_WIDTH);
+        
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = 0;
+        
+        colors[i * 3] = 0;
+        colors[i * 3 + 1] = 0;
+        colors[i * 3 + 2] = 0;
+      }
+      
+      // 设置属性
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      
+      // 创建材质
+      const material = new THREE.PointsMaterial({
+        size: 2,
+        vertexColors: true
+      });
+      
+      // 创建点云
+      this.pointCloud = new THREE.Points(geometry, material);
+      this.threeJsScene.add(this.pointCloud);
+      
+      // 更新WebRTC的媒体流以使用新的Canvas
+      this.updateMediaStream();
+      
+      // 开始渲染循环
+      this.animatePointCloud();
+      
+    } catch (error) {
+      console.error('创建点云时出错:', error);
+      this.cleanupPointCloud(); // 清理已创建的资源
+      throw error;
+    }
+  }
+  
+  // 更新WebRTC媒体流以使用当前活跃的Canvas
+  updateMediaStream() {
+    try {
+      // 目标Canvas是点云模式下的pointCloudCanvas，否则是colorCanvas
+      const targetCanvas = this.viewMode === 'pointCloud' ? this.pointCloudCanvas : this.colorCanvas;
+      
+      if (!targetCanvas) {
+        console.error('没有可用的Canvas来更新媒体流');
+        return;
+      }
+      
+      console.log(`尝试更新媒体流使用: ${this.viewMode}模式的Canvas`);
+      
+      // Mac系统上特别处理 - 使用captureStream方法
+      try {
+        // 确保Canvas可见性，以便于捕获
+        targetCanvas.style.opacity = '1';
+        
+        // 最简单的方法：将点云Canvas内容绘制到原始Canvas上（两种方法都尝试）
+        if (this.viewMode === 'pointCloud' && this.colorCanvas && this.colorCtx) {
+          console.log('将点云Canvas内容复制到原始Canvas');
+          
+          // 方法1: drawImage
+          try {
+            this.colorCtx.clearRect(0, 0, this.colorCanvas.width, this.colorCanvas.height);
+            this.colorCtx.drawImage(targetCanvas, 0, 0, this.colorCanvas.width, this.colorCanvas.height);
+            console.log('使用drawImage方法复制成功');
+          } catch (e) {
+            console.warn('使用drawImage复制失败:', e);
+            
+            // 方法2: 通过ImageData复制
+            try {
+              const tempCtx = targetCanvas.getContext('2d');
+              if (tempCtx) {
+                const imageData = tempCtx.getImageData(0, 0, targetCanvas.width, targetCanvas.height);
+                this.colorCtx.putImageData(imageData, 0, 0);
+                console.log('使用ImageData方法复制成功');
+              }
+            } catch (e2) {
+              console.warn('通过ImageData复制失败:', e2);
+            }
+          }
+          
+          // 对Mac用户，原始Canvas是WebRTC实际使用的，所以保持可见
+          if (navigator.platform.indexOf('Mac') !== -1) {
+            this.colorCanvas.style.display = 'block';
+            this.pointCloudCanvas.style.display = 'block';
+            this.pointCloudCanvas.style.position = 'absolute';
+            this.pointCloudCanvas.style.opacity = '0';  // 不可见但保持运行
+          }
+        }
+      } catch (copyError) {
+        console.warn('复制Canvas内容失败:', copyError);
+      }
+      
+      // 尝试直接替换视频轨道 - 最可靠的方法
+      if (window.localStream) {
+        try {
+          const originalCanvas = this.colorCanvas; // 总是使用原始Canvas
+          const stream = originalCanvas.captureStream(30); // 30fps
+          
+          if (stream && stream.getVideoTracks().length > 0) {
+            const videoTrack = stream.getVideoTracks()[0];
+            
+            // 获取当前的视频轨道
+            const oldTracks = window.localStream.getVideoTracks();
+            
+            // 停止旧轨道
+            oldTracks.forEach(track => track.stop());
+            
+            // 移除旧轨道
+            oldTracks.forEach(track => window.localStream.removeTrack(track));
+            
+            // 添加新轨道
+            window.localStream.addTrack(videoTrack);
+            
+            console.log('已更新媒体轨道');
+            
+            // 如果有peerConnection，更新发送器
+            if (window.pc) {
+              const senders = window.pc.getSenders();
+              senders.forEach(sender => {
+                if (sender.track && sender.track.kind === 'video') {
+                  sender.replaceTrack(videoTrack).then(() => {
+                    console.log('替换视频轨道成功');
+                  }).catch(err => {
+                    console.error('替换视频轨道失败:', err);
+                  });
+                }
+              });
+            }
+            
+            return; // 成功更新
+          } else {
+            console.warn('获取视频轨道失败');
+          }
+        } catch (streamError) {
+          console.warn('直接更新流失败:', streamError);
+        }
+      } else {
+        console.warn('找不到localStream对象');
+      }
+      
+      // 如果页面中存在更新媒体流的函数，则调用它
+      if (window.updateCanvasMediaStream && typeof window.updateCanvasMediaStream === 'function') {
+        window.updateCanvasMediaStream(this.colorCanvas); // 始终使用原始Canvas
+        console.log('已通知WebRTC更新使用Canvas元素');
+      }
+    } catch (error) {
+      console.error('更新媒体流时出错:', error);
+    }
+  }
+
+  // 清理点云资源，但不关闭Kinect连接
+  cleanupPointCloud() {
+    // 停止渲染循环
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
     }
     
-    // 设置属性
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    // 清理Three.js资源
+    if (this.threeJsControls) {
+      this.threeJsControls.dispose();
+      this.threeJsControls = null;
+    }
     
-    // 创建材质
-    const material = new THREE.PointsMaterial({
-      size: 2,
-      vertexColors: true
-    });
+    if (this.threeJsRenderer) {
+      this.threeJsRenderer.dispose();
+      this.threeJsRenderer = null;
+    }
     
-    // 创建点云
-    this.pointCloud = new THREE.Points(geometry, material);
-    this.threeJsScene.add(this.pointCloud);
+    if (this.threeJsScene) {
+      // 清理场景中的对象
+      while(this.threeJsScene.children.length > 0) { 
+        const object = this.threeJsScene.children[0];
+        if (object.geometry) object.geometry.dispose();
+        if (object.material) {
+          if (Array.isArray(object.material)) {
+            object.material.forEach(material => material.dispose());
+          } else {
+            object.material.dispose();
+          }
+        }
+        this.threeJsScene.remove(object);
+      }
+      this.threeJsScene = null;
+    }
     
-    // 开始渲染循环
-    this.animatePointCloud();
+    this.threeJsCamera = null;
+    
+    // 清理点云对象
+    if (this.pointCloud) {
+      if (this.pointCloud.geometry) {
+        this.pointCloud.geometry.dispose();
+      }
+      if (this.pointCloud.material) {
+        this.pointCloud.material.dispose();
+      }
+      this.pointCloud = null;
+    }
+    
+    // 从DOM中移除点云Canvas
+    if (this.pointCloudCanvas && this.pointCloudCanvas.parentNode) {
+      this.pointCloudCanvas.parentNode.removeChild(this.pointCloudCanvas);
+      this.pointCloudCanvas = null;
+    }
   }
   
   // 渲染点云动画
@@ -364,15 +740,32 @@ class KinectCameraManager {
       
       this.animationFrameId = requestAnimationFrame(animate);
       
-      if (this.threeJsControls) {
-        this.threeJsControls.update();
-      }
-      
-      this.threeJsRenderer.render(this.threeJsScene, this.threeJsCamera);
-      
-      // 调用回调函数
-      if (this.onFrameCallback) {
-        this.onFrameCallback(this.colorCanvas);
+      try {
+        if (this.threeJsControls) {
+          this.threeJsControls.update();
+        }
+        
+        this.threeJsRenderer.render(this.threeJsScene, this.threeJsCamera);
+        
+        // 调用回调函数 - 使用点云Canvas
+        if (this.onFrameCallback && this.pointCloudCanvas) {
+          this.onFrameCallback(this.pointCloudCanvas);
+        }
+        
+        // MAC端特殊处理：强制将点云内容复制到原Canvas
+        if (navigator.platform.indexOf('Mac') !== -1 && this.colorCtx && this.pointCloudCanvas) {
+          try {
+            this.colorCtx.clearRect(0, 0, this.colorCanvas.width, this.colorCanvas.height);
+            this.colorCtx.drawImage(this.pointCloudCanvas, 0, 0, this.colorCanvas.width, this.colorCanvas.height);
+          } catch (e) {
+            console.warn('Mac模式下复制Canvas失败:', e);
+          }
+        }
+      } catch (error) {
+        console.error('渲染点云时出错:', error);
+        // 出错时取消动画
+        cancelAnimationFrame(this.animationFrameId);
+        this.animationFrameId = null;
       }
     };
     
@@ -500,6 +893,13 @@ class KinectCameraManager {
     }
     
     this.isRunning = false;
+  }
+
+  // 检查WebGL支持
+  checkWebGLSupport() {
+    // 实现检查WebGL支持的逻辑
+    // 这里可以根据需要添加更多的检查逻辑
+    return true; // 临时返回，实际实现需要根据实际情况调整
   }
 }
 
