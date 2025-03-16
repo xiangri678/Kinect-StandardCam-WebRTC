@@ -93,8 +93,8 @@ function createWindow() {
   
   // 创建浏览器窗口
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 720,
+    width: 1200,
+    height: 800,
     webPreferences: {
       // 为了快速保证应用可用，暂时放宽安全限制
       nodeIntegration: true,
@@ -105,6 +105,9 @@ function createWindow() {
     },
     title: 'StandardCam WebRTC'
   });
+  
+  // 窗口创建后立即最大化
+  mainWindow.maximize();
 
   const indexPath = path.join(__dirname, 'renderer/index.html');
   console.log(`加载页面: ${indexPath}`);
@@ -113,7 +116,7 @@ function createWindow() {
   mainWindow.loadFile(indexPath);
 
   // 打开开发者工具，用于调试
-  // mainWindow.webContents.openDevTools();
+  mainWindow.webContents.openDevTools();
   
   // 监听页面加载状态
   mainWindow.webContents.on('did-finish-load', () => {
