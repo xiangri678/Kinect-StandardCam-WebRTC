@@ -108,6 +108,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateStatus('正在初始化组件...');
   updateServerStatus('等待连接');
   
+  // 根据操作系统自动填写用户名
+  if (userIdInput) {
+    const os = navigator.platform.toLowerCase();
+    if (os.includes('win')) {
+      userIdInput.value = 'win';
+    } else if (os.includes('mac')) {
+      userIdInput.value = 'mac';
+    }
+  }
+  
   // 导入摄像头管理器 - 优先使用 Kinect
   let cameraManager;
   try {
