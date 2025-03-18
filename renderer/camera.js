@@ -23,6 +23,27 @@ class CameraManager {
     this.isSimulated = false; // 是否使用模拟模式
     this.simulationInterval = null; // 模拟模式的定时器
     
+    // 点云相关属性
+    this.viewMode = 'color'; // 'color' 或 'pointCloud'
+    this.pointCloudCanvas = null;
+    this.pointCloudEnabled = false;
+    this.threeJsRenderer = null;
+    this.threeJsScene = null;
+    this.threeJsCamera = null;
+    this.threeJsControls = null;
+    this.pointCloud = null;
+    this.remotePointCloudActive = false;
+    this.lastReceivedDataTime = 0;
+    this.receivedFramesCount = 0;
+    
+    // 绑定模式切换事件
+    const viewModeSelect = document.getElementById('viewModeSelect');
+    if (viewModeSelect) {
+      viewModeSelect.addEventListener('change', (event) => {
+        this.setViewMode(event.target.value);
+      });
+    }
+    
     // 创建一个隐藏的视频元素用于获取摄像头流
     this.createVideoElement();
   }
@@ -61,45 +82,144 @@ class CameraManager {
       return true;
     }
     
+    // 定义不同的视频约束选项，从高到低质量
+    const videoConstraints = [
+      { // 高质量
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 30 }
+      },
+      { // 中等质量
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        frameRate: { ideal: 24 }
+      },
+      { // 低质量
+        width: { ideal: 320 },
+        height: { ideal: 240 },
+        frameRate: { ideal: 15 }
+      },
+      { // 最低质量，无特定约束
+        facingMode: "user"
+      }
+    ];
+    
     // 尝试获取摄像头流
-    try {
-      // 请求获取摄像头权限
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 }
-        },
-        audio: false
-      });
-      
-      console.log('成功获取摄像头流');
-      this.mediaStream = stream;
-      
-      // 将摄像头流绑定到视频元素
-      this.videoElement.srcObject = stream;
-      
-      // 当视频可以播放时开始处理帧
-      this.videoElement.onloadedmetadata = () => {
-        console.log('视频元数据已加载，开始播放');
-        this.videoElement.play();
+    let lastError = null;
+    
+    // 依次尝试不同的视频约束
+    for (let i = 0; i < videoConstraints.length; i++) {
+      try {
+        console.log(`尝试获取摄像头，配置方案 ${i+1}/${videoConstraints.length}:`, videoConstraints[i]);
         
-        // 开始帧循环
-        this.startFrameLoop();
-      };
-      
-      this.isRunning = true;
-      return true;
-    } catch (error) {
-      console.error('获取摄像头流失败:', error);
-      console.log('切换到模拟模式');
-      
-      // 失败时切换到模拟模式
-      this.isSimulated = true;
-      this.startSimulatedStream();
-      
-      return true;
+        // 检查摄像头可用性
+        if (i === 0) { // 只在第一次尝试时检查设备
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter(device => device.kind === 'videoinput');
+          console.log(`发现${videoDevices.length}个视频输入设备:`, videoDevices.map(d => d.label || '未命名设备'));
+          
+          if (videoDevices.length === 0) {
+            console.error('未检测到摄像头设备');
+            throw new Error('未检测到摄像头设备');
+          }
+        }
+        
+        // 请求获取摄像头权限
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints[i],
+          audio: false
+        });
+        
+        console.log(`成功获取摄像头流，使用配置方案 ${i+1}`);
+        this.mediaStream = stream;
+        
+        // 将摄像头流绑定到视频元素
+        this.videoElement.srcObject = stream;
+        
+        // 当视频可以播放时开始处理帧
+        this.videoElement.onloadedmetadata = () => {
+          console.log('视频元数据已加载，开始播放');
+          this.videoElement.play();
+          
+          // 开始帧循环
+          this.startFrameLoop();
+        };
+        
+        this.isRunning = true;
+        return true;
+      } catch (error) {
+        console.error(`尝试配置方案 ${i+1} 失败:`, error);
+        lastError = error;
+        
+        // 如果错误是权限被拒绝或设备不可用，不再尝试其他配置
+        if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
+          console.error('摄像头访问被拒绝或设备不可用，停止尝试');
+          break;
+        }
+        
+        // 继续尝试下一个配置
+      }
     }
+    
+    // 所有尝试都失败了，显示错误并切换到模拟模式
+    console.error('所有摄像头获取尝试均失败:', lastError);
+    
+    // 添加详细错误诊断
+    if (lastError && lastError.name) {
+      switch(lastError.name) {
+        case 'NotFoundError':
+          console.error('未找到摄像头设备。请确保摄像头已正确连接。');
+          break;
+        case 'NotAllowedError':
+          console.error('摄像头权限被拒绝。请在浏览器设置中允许摄像头访问。');
+          break;
+        case 'NotReadableError':
+          console.error('摄像头可能被其他应用程序占用。请关闭可能使用摄像头的其他应用。');
+          break;
+        case 'OverconstrainedError':
+          console.error('摄像头不满足请求的约束条件。尝试降低分辨率或帧率。');
+          break;
+        case 'AbortError':
+          console.error('获取摄像头的操作被中止。');
+          break;
+        case 'SecurityError':
+          console.error('使用摄像头被安全策略阻止。');
+          break;
+        case 'TypeError':
+          console.error('摄像头参数类型错误。');
+          break;
+        default:
+          console.error(`未知错误类型: ${lastError.name}`);
+      }
+    }
+    
+    // 显示用户友好的错误提示
+    const errorMessage = document.createElement('div');
+    errorMessage.style.position = 'absolute';
+    errorMessage.style.top = '10px';
+    errorMessage.style.left = '10px';
+    errorMessage.style.padding = '10px';
+    errorMessage.style.backgroundColor = 'rgba(255,0,0,0.7)';
+    errorMessage.style.color = 'white';
+    errorMessage.style.borderRadius = '5px';
+    errorMessage.style.zIndex = '1000';
+    errorMessage.textContent = `摄像头访问失败: ${lastError.message || '未知错误'}。正在切换到模拟模式。`;
+    document.body.appendChild(errorMessage);
+    
+    // 3秒后移除错误提示
+    setTimeout(() => {
+      if (errorMessage.parentNode) {
+        errorMessage.parentNode.removeChild(errorMessage);
+      }
+    }, 5000);
+    
+    console.log('切换到模拟模式');
+    
+    // 失败时切换到模拟模式
+    this.isSimulated = true;
+    this.startSimulatedStream();
+    
+    return true;
   }
   
   // 开始帧循环
@@ -309,6 +429,594 @@ class CameraManager {
     ctx.stroke();
   }
   
+  // 设置视图模式
+  setViewMode(mode) {
+    if (mode !== 'color' && mode !== 'pointCloud') {
+      console.error('无效的视图模式:', mode);
+      return;
+    }
+    
+    console.log(`[Camera] 设置视图模式: ${mode}, 当前模式: ${this.viewMode}`);
+    
+    // 检查THREE.js是否可用
+    const THREE = window.THREE;
+    if (mode === 'pointCloud' && (!THREE || !this.checkWebGLSupport())) {
+      console.error('[Camera] 点云模式不可用: THREE.js库未加载或WebGL不受支持');
+      console.log('[Camera] THREE状态:', THREE ? 'THREE.js已加载' : 'THREE.js未加载');
+      console.log('[Camera] WebGL支持状态:', this.checkWebGLSupport() ? '支持' : '不支持');
+      alert('点云模式不可用: 您的浏览器可能不支持WebGL或THREE.js库未正确加载');
+      
+      // 更新视图模式选择器
+      const viewModeSelect = document.getElementById('viewModeSelect');
+      if (viewModeSelect) {
+        viewModeSelect.value = 'color';
+      }
+      return;
+    }
+    
+    // 如果已经处于该模式，则不做任何事情
+    if (this.viewMode === mode) {
+      console.log(`[Camera] 已经处于${mode}模式，无需切换`);
+      return;
+    }
+    
+    console.log(`[Camera] 开始从${this.viewMode}模式切换到${mode}模式`);
+    
+    // 停止渲染循环但不关闭设备
+    if (this.animationFrameId) {
+      console.log(`[Camera] 取消现有的动画帧ID: ${this.animationFrameId}`);
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    
+    // 记住旧的回调函数，用于后续重新应用
+    const previousCallback = this.onFrameCallback;
+    console.log(`[Camera] 保存现有回调函数: `, previousCallback ? '有效' : '无效');
+    
+    // 更新视图模式
+    this.viewMode = mode;
+    this.pointCloudEnabled = (mode === 'pointCloud');
+    console.log(`[Camera] 视图模式已更新: ${this.viewMode}, 点云启用: ${this.pointCloudEnabled}`);
+    
+    // 模式切换 - 显示/隐藏相应的Canvas
+    if (mode === 'pointCloud') {
+      // 设置点云
+      try {
+        console.log('[Camera] 开始设置点云环境');
+        this.setupPointCloud();
+        
+        // 如果有彩色Canvas，隐藏它
+        if (this.colorCanvas) {
+          console.log('[Camera] 隐藏彩色Canvas');
+          this.colorCanvas.style.display = 'none';
+        }
+        
+        // 显示点云Canvas
+        if (this.pointCloudCanvas) {
+          console.log('[Camera] 显示点云Canvas');
+          this.pointCloudCanvas.style.display = 'block';
+        }
+        
+        console.log('[Camera] 点云环境设置完成');
+      } catch (error) {
+        console.error('[Camera] 设置点云失败:', error);
+        this.viewMode = 'color';
+        this.pointCloudEnabled = false;
+        
+        // 更新视图模式选择器
+        const viewModeSelect = document.getElementById('viewModeSelect');
+        if (viewModeSelect) {
+          viewModeSelect.value = 'color';
+        }
+      }
+    } else {
+      // 切换回彩色模式
+      console.log('[Camera] 切换回彩色模式');
+      // 隐藏点云Canvas
+      if (this.pointCloudCanvas) {
+        console.log('[Camera] 隐藏点云Canvas');
+        this.pointCloudCanvas.style.display = 'none';
+      }
+      
+      // 显示彩色Canvas
+      if (this.colorCanvas) {
+        console.log('[Camera] 显示彩色Canvas');
+        this.colorCanvas.style.display = 'block';
+      }
+      
+      // 清理点云资源
+      console.log('[Camera] 清理点云资源');
+      this.cleanupPointCloud();
+    }
+    
+    // 重新启动帧循环
+    if (this.isRunning && previousCallback) {
+      console.log('[Camera] 重新启动帧循环，使用之前保存的回调');
+      this.startStreaming(previousCallback);
+    }
+    
+    console.log(`[Camera] 视图模式切换完成: ${this.viewMode}`);
+  }
+  
+  // 检查WebGL支持
+  checkWebGLSupport() {
+    try {
+      const canvas = document.createElement('canvas');
+      return !!(window.WebGLRenderingContext && 
+        (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+    } catch (e) {
+      return false;
+    }
+  }
+  
+  // 设置点云
+  setupPointCloud() {
+    const THREE = window.THREE;
+    if (!THREE) {
+      console.error('THREE.js库未加载，无法设置点云');
+      throw new Error('THREE.js库未加载');
+    }
+
+    if (!this.checkWebGLSupport()) {
+      console.error('WebGL不被此浏览器支持，无法使用点云功能');
+      throw new Error('WebGL不支持');
+    }
+    
+    try {
+      console.log('开始初始化点云环境...');
+      
+      // 清理任何已存在的点云Canvas
+      this.cleanupPointCloud();
+      
+      // 创建新的Canvas元素用于点云
+      this.pointCloudCanvas = document.createElement('canvas');
+      this.pointCloudCanvas.width = 640;
+      this.pointCloudCanvas.height = 480;
+      this.pointCloudCanvas.style.display = 'block';
+      this.pointCloudCanvas.id = 'pointCloudCanvas'; // 添加ID便于调试
+      
+      // 将点云Canvas添加到DOM中，替换彩色Canvas的位置
+      if (this.colorCanvas && this.colorCanvas.parentNode) {
+        this.colorCanvas.parentNode.insertBefore(this.pointCloudCanvas, this.colorCanvas.nextSibling);
+        console.log('点云Canvas已添加到DOM');
+      } else {
+        document.body.appendChild(this.pointCloudCanvas);
+        console.log('点云Canvas已添加到body');
+      }
+      
+      // 创建Three.js场景
+      this.threeJsScene = new THREE.Scene();
+      console.log('THREE.js场景已创建');
+      
+      // 摄像机
+      const width = this.pointCloudCanvas.width;
+      const height = this.pointCloudCanvas.height;
+      this.threeJsCamera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
+      this.threeJsCamera.position.set(0, 0, 2000);
+      this.threeJsCamera.lookAt(0, 0, 0);
+      console.log('THREE.js相机已设置', this.threeJsCamera.position);
+      
+      // 渲染器 - 使用新创建的Canvas
+      this.threeJsRenderer = new THREE.WebGLRenderer({
+        canvas: this.pointCloudCanvas,
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: true // 确保可以从Canvas中读取数据
+      });
+      this.threeJsRenderer.setSize(width, height);
+      this.threeJsRenderer.setClearColor(0x000000, 0);
+      console.log('THREE.js渲染器已创建');
+      
+      // 添加轨道控制器
+      try {
+        // 尝试不同的可能位置来获取OrbitControls
+        const OrbitControls = 
+          (window.THREE && window.THREE.OrbitControls) || 
+          (THREE.OrbitControls) || 
+          (window.OrbitControls);
+        
+        if (OrbitControls) {
+          this.threeJsControls = new OrbitControls(this.threeJsCamera, this.pointCloudCanvas);
+          this.threeJsControls.enableDamping = true;
+          this.threeJsControls.dampingFactor = 0.25;
+          console.log('THREE.js轨道控制器已创建');
+        } else {
+          console.warn('未找到OrbitControls，3D视图将不可旋转');
+        }
+      } catch (error) {
+        console.warn('初始化OrbitControls失败:', error);
+      }
+      
+      // 深度图尺寸
+      const DEPTH_WIDTH = 640;
+      const DEPTH_HEIGHT = 576;
+      const numPoints = DEPTH_WIDTH * DEPTH_HEIGHT;
+      console.log(`准备创建点云，点数: ${numPoints}`);
+      
+      // 创建几何体 - 使用BufferGeometry
+      const geometry = new THREE.BufferGeometry();
+      
+      // 创建位置和颜色缓冲区
+      const positions = new Float32Array(numPoints * 3);
+      const colors = new Float32Array(numPoints * 3);
+      
+      // 初始化点位置
+      for (let i = 0; i < numPoints; i++) {
+        const x = (i % DEPTH_WIDTH) - DEPTH_WIDTH * 0.5;
+        const y = DEPTH_HEIGHT / 2 - Math.floor(i / DEPTH_WIDTH);
+        
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = 0;
+        
+        colors[i * 3] = 0;
+        colors[i * 3 + 1] = 0;
+        colors[i * 3 + 2] = 0;
+      }
+      
+      // 设置属性
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      console.log('点云几何体属性已设置');
+      
+      // 创建材质
+      const material = new THREE.PointsMaterial({
+        size: 2,
+        vertexColors: true
+      });
+      
+      // 创建点云
+      this.pointCloud = new THREE.Points(geometry, material);
+      this.threeJsScene.add(this.pointCloud);
+      console.log('点云已添加到场景');
+      
+      // 更新WebRTC的媒体流以使用新的Canvas
+      this.updateMediaStream();
+      
+      // 开始渲染循环
+      console.log('初始化完成，开始点云渲染循环');
+      this.animatePointCloud();
+      
+      console.log('点云初始化完成');
+    } catch (error) {
+      console.error('创建点云时出错:', error, error.stack);
+      this.cleanupPointCloud(); // 清理已创建的资源
+      throw error;
+    }
+  }
+  
+  // 更新媒体流
+  updateMediaStream() {
+    // 如果需要更新WebRTC媒体流，可以在这里实现
+    console.log('更新媒体流以使用新的Canvas');
+  }
+  
+  // 清理点云资源
+  cleanupPointCloud() {
+    const THREE = window.THREE;
+    if (!THREE) return;
+    
+    // 停止渲染循环
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    
+    // 清理Three.js资源
+    if (this.threeJsControls) {
+      this.threeJsControls.dispose();
+      this.threeJsControls = null;
+    }
+    
+    if (this.threeJsRenderer) {
+      this.threeJsRenderer.dispose();
+      this.threeJsRenderer = null;
+    }
+    
+    if (this.threeJsScene) {
+      // 清理场景中的对象
+      while(this.threeJsScene.children.length > 0) { 
+        const object = this.threeJsScene.children[0];
+        if (object.geometry) object.geometry.dispose();
+        if (object.material) {
+          if (Array.isArray(object.material)) {
+            object.material.forEach(material => material.dispose());
+          } else {
+            object.material.dispose();
+          }
+        }
+        this.threeJsScene.remove(object);
+      }
+      this.threeJsScene = null;
+    }
+    
+    this.threeJsCamera = null;
+    
+    // 清理点云对象
+    if (this.pointCloud) {
+      if (this.pointCloud.geometry) {
+        this.pointCloud.geometry.dispose();
+      }
+      if (this.pointCloud.material) {
+        this.pointCloud.material.dispose();
+      }
+      this.pointCloud = null;
+    }
+    
+    // 从DOM中移除点云Canvas
+    if (this.pointCloudCanvas && this.pointCloudCanvas.parentNode) {
+      this.pointCloudCanvas.parentNode.removeChild(this.pointCloudCanvas);
+      this.pointCloudCanvas = null;
+    }
+  }
+  
+  // 渲染点云动画
+  animatePointCloud() {
+    const THREE = window.THREE;
+    if (!THREE) {
+      console.error('[Camera] 点云渲染失败: THREE.js未加载');
+      return;
+    }
+    
+    if (!this.threeJsRenderer || !this.threeJsScene || !this.threeJsCamera) {
+      console.error('[Camera] 无法启动点云动画循环：渲染器、场景或摄像机未初始化');
+      console.log('[Camera] 渲染器状态:', this.threeJsRenderer ? '已创建' : '未创建');
+      console.log('[Camera] 场景状态:', this.threeJsScene ? '已创建' : '未创建'); 
+      console.log('[Camera] 相机状态:', this.threeJsCamera ? '已创建' : '未创建');
+      return;
+    }
+    
+    // 避免重复启动
+    if (this.animationFrameId) {
+      console.log('[Camera] 点云动画循环已在运行中，不需要重复启动, ID:', this.animationFrameId);
+      return;
+    }
+    
+    console.log('[Camera] 启动点云渲染循环');
+    
+    // 跟踪帧数以便调试
+    this.frameCount = 0;
+    this.animationStartTime = Date.now();
+    this.lastFrameTime = Date.now();
+    
+    // 设置一个正常帧率的基准
+    const targetFrameRate = 60;
+    const minFrameTime = 1000 / targetFrameRate;
+    
+    // 定义动画函数
+    const animate = () => {
+      // 安全检查 - 如果退出点云模式，则停止动画循环
+      if (this.viewMode !== 'pointCloud') {
+        console.log('[Camera] 退出点云模式，停止动画循环');
+        this.animationFrameId = null;
+        return;
+      }
+      
+      // 如果点云已经被清理，停止动画循环
+      if (!this.pointCloud || !this.threeJsRenderer || !this.threeJsScene || !this.threeJsCamera) {
+        console.error('[Camera] 点云渲染中断: 点云或渲染组件已被清理');
+        console.log('[Camera] 点云状态:', this.pointCloud ? '存在' : '已清理');
+        console.log('[Camera] 渲染器状态:', this.threeJsRenderer ? '存在' : '已清理');
+        this.animationFrameId = null;
+        return;
+      }
+      
+      // 计算帧时间
+      const now = Date.now();
+      const frameDelta = now - this.lastFrameTime;
+      
+      // 跟踪帧
+      this.frameCount++;
+      if (this.frameCount % 10 === 0) {
+        console.log(`[Camera] 点云渲染帧: ${this.frameCount}, 帧间隔: ${frameDelta}ms`);
+        
+        // 验证点云和场景状态
+        console.log(`[Camera] 点云状态检查: 点数=${this.pointCloud.geometry.attributes.position.count}, 场景子对象数=${this.threeJsScene.children.length}`);
+      }
+      
+      // 如果帧时间太短，延迟执行以控制帧率
+      if (frameDelta < minFrameTime) {
+        console.log(`[Camera] 帧间隔过短: ${frameDelta}ms < ${minFrameTime}ms, 延迟执行`);
+        this.animationFrameId = setTimeout(() => {
+          console.log('[Camera] 延迟帧执行中...');
+          this.animationFrameId = requestAnimationFrame(animate);
+        }, minFrameTime - frameDelta);
+        return;
+      }
+      
+      // 继续执行动画帧
+      this.animationFrameId = requestAnimationFrame(animate);
+      this.lastFrameTime = now;
+      
+      try {
+        // 检查是否在使用远程点云数据
+        if (this.remotePointCloudActive) {
+          // 检查是否长时间未收到数据
+          const timeSinceLastData = now - this.lastReceivedDataTime;
+          if (timeSinceLastData > 10000) { // 如果超过10秒未收到数据
+            console.warn(`[Camera] 已有${Math.floor(timeSinceLastData/1000)}秒未收到点云数据，点云可能已停止传输`);
+            
+            // 在画面上显示警告
+            if (this.threeJsRenderer) {
+              // 创建临时Canvas显示警告
+              const tempCanvas = document.createElement('canvas');
+              tempCanvas.width = this.pointCloudCanvas.width;
+              tempCanvas.height = this.pointCloudCanvas.height;
+              const ctx = tempCanvas.getContext('2d');
+              
+              // 绘制半透明背景
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+              ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+              
+              // 绘制警告文本
+              ctx.font = '20px Arial';
+              ctx.fillStyle = 'red';
+              ctx.textAlign = 'center';
+              ctx.fillText('点云数据接收中断', tempCanvas.width / 2, tempCanvas.height / 2);
+              ctx.font = '16px Arial';
+              ctx.fillStyle = 'white';
+              ctx.fillText('请检查连接或重新启动应用', tempCanvas.width / 2, tempCanvas.height / 2 + 30);
+              
+              // 创建纹理并显示在场景中
+              const texture = new THREE.CanvasTexture(tempCanvas);
+              const material = new THREE.SpriteMaterial({ map: texture });
+              const sprite = new THREE.Sprite(material);
+              sprite.scale.set(tempCanvas.width, tempCanvas.height, 1);
+              
+              // 添加到场景
+              this.threeJsScene.add(sprite);
+            }
+          }
+        }
+        
+        // 更新控制器
+        if (this.threeJsControls) {
+          this.threeJsControls.update();
+        }
+        
+        // 渲染场景
+        if (this.frameCount % 10 === 0) {
+          console.log(`[Camera] 渲染点云帧 ${this.frameCount} - 开始渲染`);
+        }
+        this.threeJsRenderer.render(this.threeJsScene, this.threeJsCamera);
+        if (this.frameCount % 10 === 0) {
+          console.log(`[Camera] 渲染点云帧 ${this.frameCount} - 渲染完成`);
+        }
+      } catch (error) {
+        console.error(`[Camera] 点云渲染错误 [帧 ${this.frameCount}]:`, error);
+      }
+    };
+    
+    // 启动帧循环
+    console.log('[Camera] 开始第一次点云动画帧请求');
+    this.animationFrameId = requestAnimationFrame(animate);
+    console.log('[Camera] 点云动画帧请求已提交, ID:', this.animationFrameId);
+  }
+  
+  // 接收点云数据
+  receivePointCloudData(positions, colors) {
+    const THREE = window.THREE;
+    if (!THREE) {
+      console.error('[Camera] 接收点云数据失败: THREE.js未加载');
+      return;
+    }
+    
+    console.log(`[Camera] 接收点云数据: 数据长度=${positions ? positions.length/3 : 0}个点`);
+    
+    if (!this.remotePointCloudActive) {
+      console.log('[Camera] 首次接收远程点云数据，激活远程点云模式');
+      this.remotePointCloudActive = true;
+      
+      // 确保点云已初始化
+      if (this.viewMode !== 'pointCloud') {
+        console.log('[Camera] 接收到点云数据但当前不在点云模式，切换到点云模式');
+        this.setViewMode('pointCloud');
+      }
+    }
+    
+    // 检查点云是否已经初始化
+    if (!this.pointCloud || !this.pointCloud.geometry) {
+      console.error('[Camera] 点云对象或几何体未初始化，无法更新点云数据');
+      console.log('[Camera] 当前视图模式:', this.viewMode);
+      console.log('[Camera] 点云对象状态:', this.pointCloud ? '已创建' : '未创建');
+      if (this.pointCloud) {
+        console.log('[Camera] 点云几何体状态:', this.pointCloud.geometry ? '已创建' : '未创建');
+      }
+      return;
+    }
+    
+    // 记录接收数据时间
+    this.lastReceivedDataTime = Date.now();
+    
+    // 数据有效性验证
+    if (!positions || !colors || positions.length === 0 || colors.length === 0) {
+      console.error('[Camera] 接收到无效的点云数据: 数据为空');
+      return;
+    }
+    
+    if (positions.length !== colors.length) {
+      console.error(`[Camera] 点云数据长度不匹配: 位置(${positions.length}) 颜色(${colors.length})`);
+      return;
+    }
+    
+    if (positions.length % 3 !== 0) {
+      console.error(`[Camera] 点云数据长度必须是3的倍数: 位置(${positions.length})`);
+      return;
+    }
+    
+    // 测量性能
+    const startTime = performance.now();
+    
+    try {
+      // 确保点云几何体已经创建
+      if (!this.pointCloud || !this.pointCloud.geometry) {
+        console.warn('[Camera] 点云几何体未初始化，尝试重新创建');
+        
+        if (this.viewMode !== 'pointCloud') {
+          console.log('[Camera] 当前不在点云模式，切换到点云模式');
+          this.setViewMode('pointCloud');
+        }
+        
+        if (!this.pointCloud || !this.pointCloud.geometry) {
+          console.error('[Camera] 无法创建点云几何体，无法显示远程点云数据');
+          return;
+        }
+      }
+      
+      // 获取点云几何体
+      const geometry = this.pointCloud.geometry;
+      
+      // 计算点的数量
+      const numPoints = positions.length / 3;
+      
+      // 如果接收到的点数量与当前几何体不同，需要重新分配缓冲区
+      if (geometry.attributes.position.count !== numPoints) {
+        console.log(`[Camera] 点云大小变化: 从 ${geometry.attributes.position.count} 变为 ${numPoints} 个点`);
+        
+        // 创建新的缓冲区
+        geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+        console.log('[Camera] 创建了新的点云缓冲区');
+      } else {
+        // 复用现有缓冲区，只更新数据
+        const positionArray = geometry.attributes.position.array;
+        const colorArray = geometry.attributes.color.array;
+        
+        // 复制数据
+        for (let i = 0; i < positions.length; i++) {
+          positionArray[i] = positions[i];
+          colorArray[i] = colors[i];
+        }
+        
+        // 标记属性需要更新
+        geometry.attributes.position.needsUpdate = true;
+        geometry.attributes.color.needsUpdate = true;
+        console.log('[Camera] 更新了现有点云缓冲区数据');
+      }
+      
+      // 更新包围球以确保正确渲染
+      geometry.computeBoundingSphere();
+      console.log(`[Camera] 点云包围球半径: ${geometry.boundingSphere.radius}, 中心: [${geometry.boundingSphere.center.x}, ${geometry.boundingSphere.center.y}, ${geometry.boundingSphere.center.z}]`);
+      
+      // 记录帧计数
+      this.receivedFramesCount++;
+      
+      // 性能日志
+      const endTime = performance.now();
+      const processingTime = endTime - startTime;
+      
+      console.log(`[Camera] 点云处理完成: 帧=${this.receivedFramesCount}, 耗时=${processingTime.toFixed(2)}ms, 点数=${numPoints}`);
+      
+      // 检查是否需要开始渲染循环
+      if (this.threeJsRenderer && (!this.animationFrameId || this.receivedFramesCount === 1)) {
+        console.log('[Camera] 点云数据已更新，确保渲染循环正在运行');
+        this.animatePointCloud();
+      }
+    } catch (error) {
+      console.error('[Camera] 处理点云数据时出错:', error, error.stack);
+    }
+  }
+  
   // 关闭摄像头
   close() {
     console.log('关闭摄像头资源');
@@ -330,6 +1038,9 @@ class CameraManager {
       this.mediaStream.getTracks().forEach(track => track.stop());
       this.mediaStream = null;
     }
+    
+    // 清理点云资源
+    this.cleanupPointCloud();
     
     // 移除视频元素
     if (this.videoElement && this.videoElement.parentNode) {
