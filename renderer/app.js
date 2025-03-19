@@ -217,6 +217,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       addLog('错误', `${message} - ${error && error.message ? error.message : error}`);
     };
     
+    window.webrtcManager = webrtcManager;
     console.log('WebRTCManager创建完成');
     addLog('系统', 'WebRTC管理器创建完成');
   } catch (error) {

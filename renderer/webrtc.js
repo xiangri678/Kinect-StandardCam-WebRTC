@@ -234,7 +234,7 @@ class WebRTCManager {
         this.log('接收到数据通道消息', typeof data === 'string' ? data.substring(0, 100) + '...' : '二进制数据');
         this.handleDataChannelMessage(data);
       } catch (error) {
-        this.error('处理数据通道消息时出错', error);
+        this.error('接收数据通道消息时出错', error);
       }
     });
     
@@ -679,106 +679,85 @@ class WebRTCManager {
    * 发送点云数据
    * @param {Float32Array|Array} positions - 位置数据
    * @param {Float32Array|Array} colors - 颜色数据
+   * @param {boolean} useBinary - 是否使用二进制模式发送
    * @returns {boolean} - 是否成功发送
    */
-  sendPointCloudData(positions, colors) {
-    // 数据有效性检查
-    if (!positions || !colors || positions.length === 0 || colors.length === 0) {
-      console.error('点云数据无效: 位置或颜色数据为空');
-      return false;
-    }
-    
-    if (positions.length !== colors.length) {
-      console.error(`点云数据不匹配: 位置数据长度(${positions.length}) 不等于颜色数据长度(${colors.length})`);
+  sendPointCloudData(positions, colors, useBinary = true) {
+    if (!this.peer || !this.peer.connected || !this.dataChannel) {
+      console.warn('[WebRTC] 连接未建立 / 数据通道未打开，无法发送点云数据');
       return false;
     }
 
-    // 状态检查
-    if (!this.dataChannel || this.dataChannel.readyState !== 'open') {
-      if (!this.createDataChannel()) {
-        console.error('无法发送点云数据: 数据通道未打开');
-        return false;
-      }
+    // 激进的节流：每500ms最多发送一次
+    const now = Date.now();
+    if (this._lastSendTime && now - this._lastSendTime < 500) {
+      console.log('[WebRTC] 发送频率过高，跳过此帧');
+      return true;
     }
-    
+    this._lastSendTime = now;
+
+    // 检查数据通道缓冲区状态
+    if (this.peer.bufferSize > 5000000) { // 降低缓冲区限制到5MB
+      console.warn(`[WebRTC] 数据通道缓冲区已满(${this.peer.bufferSize/1000000}MB)，跳过此帧点云数据`);
+      return true;
+    }
+
+    // 数据有效性检查
+    if (!positions || !colors || positions.length === 0 || colors.length === 0) {
+      console.warn('[WebRTC] 无效的点云数据');
+      return false;
+    }
+
+    // 确保数据是Float32Array类型
+    const posArray = positions instanceof Float32Array ? positions : new Float32Array(positions);
+    const colArray = colors instanceof Float32Array ? colors : new Float32Array(colors);
+
+    // 激进的降采样：只保留10%的点
+    const sampleRate = 10;
+    const sampledPositions = new Float32Array(Math.floor(posArray.length / sampleRate));
+    const sampledColors = new Float32Array(Math.floor(colArray.length / sampleRate));
+
+    for (let i = 0; i < sampledPositions.length; i += 3) {
+      sampledPositions[i] = posArray[i * sampleRate];
+      sampledPositions[i + 1] = posArray[i * sampleRate + 1];
+      sampledPositions[i + 2] = posArray[i * sampleRate + 2];
+    }
+
+    for (let i = 0; i < sampledColors.length; i += 3) {
+      sampledColors[i] = colArray[i * sampleRate];
+      sampledColors[i + 1] = colArray[i * sampleRate + 1];
+      sampledColors[i + 2] = colArray[i * sampleRate + 2];
+    }
+
+    console.log(`[WebRTC] 点云数据降采样: ${posArray.length/3} -> ${sampledPositions.length/3} 个点`);
+
     try {
-      // 先发送一个测试消息确认数据通道是否正常
-      if (!this._lastTestSentTime || Date.now() - this._lastTestSentTime > 10000) {
-        this._lastTestSentTime = Date.now();
-        this.dataChannel.send(JSON.stringify({
-          type: 'test',
-          message: '测试数据通道连接',
-          timestamp: Date.now()
-        }));
+      if (useBinary) {
+        // 创建二进制数据
+        const combinedBuffer = new Float32Array(sampledPositions.length + sampledColors.length);
+        combinedBuffer.set(sampledPositions);
+        combinedBuffer.set(sampledColors, sampledPositions.length);
+
+        // 发送二进制数据
+        this.peer.send(combinedBuffer.buffer);
+        console.log('[WebRTC] 二进制点云数据已发送');
+      } else {
+        // 使用JSON模式 - 更简单但传输效率较低
+        const data = {
+          positions: Array.from(sampledPositions),
+          colors: Array.from(sampledColors)
+        };
+        this.peer.send(JSON.stringify(data));
+        console.log('[WebRTC] JSON点云数据已发送');
       }
-      
-      console.log(`准备发送点云数据: 位置数组长度 ${positions.length}, 颜色数组长度 ${colors.length}`);
-      
-      // 检查数据大小，如果太大则降采样
-      // WebRTC数据通道单次消息最大16KB
-      const BYTES_PER_FLOAT = 4; // Float32 = 4字节
-      const estimatedSize = (positions.length + colors.length) * BYTES_PER_FLOAT;
-      const MAX_SIZE = 16000; // 16KB限制
-      
-      let posArray = positions;
-      let colArray = colors;
-      
-      // 数据降采样 - 每次取第N个点，确保数据小于16KB
-      if (estimatedSize > MAX_SIZE) {
-        const samplingRate = Math.ceil(estimatedSize / MAX_SIZE);
-        console.log(`点云数据过大(${(estimatedSize/1024).toFixed(2)}KB)，采样率设为${samplingRate}`);
-        
-        // 创建新数组，确保长度是3的倍数（x,y,z坐标和r,g,b颜色）
-        const newPosLength = Math.floor(positions.length / samplingRate / 3) * 3;
-        const newPositions = new Float32Array(newPosLength);
-        const newColors = new Float32Array(newPosLength);
-        
-        // 降采样 - 确保我们始终保留完整的点(x,y,z和r,g,b)
-        for (let i = 0, j = 0; i < newPosLength; i += 3, j += 3 * samplingRate) {
-          if (j + 2 < positions.length) {
-            newPositions[i] = positions[j];
-            newPositions[i+1] = positions[j+1];
-            newPositions[i+2] = positions[j+2];
-            
-            newColors[i] = colors[j];
-            newColors[i+1] = colors[j+1];
-            newColors[i+2] = colors[j+2];
-          }
-        }
-        
-        posArray = newPositions;
-        colArray = newColors;
-        
-        console.log(`降采样后数据大小: 位置数组长度 ${posArray.length}, 颜色数组长度 ${colArray.length}`);
-      }
-      
-      // 将数据序列化为传输格式 - 转换为普通数组以便JSON序列化
-      const dataToSend = {
-        type: 'pointCloudData',
-        timestamp: Date.now(),
-        positions: Array.from(posArray),
-        colors: Array.from(colArray)
-      };
-      
-      // 序列化并发送
-      const jsonData = JSON.stringify(dataToSend);
-      
-      // 记录发送数据大小以便调试
-      console.log(`正在发送点云数据, JSON大小: ${(jsonData.length / 1024).toFixed(2)}KB`);
-      
-      // 实际发送数据
-      this.dataChannel.send(jsonData);
-      
       return true;
     } catch (error) {
-      console.error('发送点云数据时出错:', error);
+      console.error('[WebRTC] 发送点云数据时出错:', error);
       
-      // 处理网络错误
-      if (error.name === 'NetworkError' || 
-          error.message.includes('network') || 
-          error.message.includes('failed')) {
-        console.warn('网络错误，尝试重新建立数据通道');
-        this.createDataChannel();
+      // 如果是因为缓冲区已满导致的错误，尝试重新连接
+      if (error.message && error.message.includes('send queue is full')) {
+        console.warn('[WebRTC] 数据通道缓冲区已满，尝试重新连接');
+        this.reconnect();
       }
       
       return false;
@@ -787,28 +766,123 @@ class WebRTCManager {
   
   /**
    * 处理数据通道消息
-   * @param {MessageEvent} event - 接收到的消息事件
+   * @param {MessageEvent|ArrayBuffer|String} event - 接收到的消息事件或数据
    */
   handleDataChannelMessage(event) {
     try {
-      // 确保接收到的是字符串数据
-      let dataStr = event.data;
-      if (typeof dataStr !== 'string') {
-        // 尝试将二进制数据转换为字符串
+      console.log('[WebRTC] 收到数据通道消息类型:', typeof event);
+      
+      // 确定数据内容
+      let data;
+      if (typeof event === 'string') {
+        // 如果是字符串，直接尝试解析
+        console.log('[WebRTC] 收到字符串数据');
         try {
-          const textDecoder = new TextDecoder();
-          dataStr = textDecoder.decode(event.data);
-        } catch (err) {
-          console.error('无法解码接收到的数据:', err);
+          data = JSON.parse(event);
+        } catch (parseError) {
+          console.error('[WebRTC] 解析JSON字符串失败:', parseError);
           return;
         }
+      } else if (event instanceof ArrayBuffer || ArrayBuffer.isView(event)) {
+        // 如果是ArrayBuffer或TypedArray
+        console.log('[WebRTC] 收到二进制数据, 长度:', event.byteLength || event.buffer.byteLength);
+        
+        // 首先尝试将二进制数据转换为字符串并解析JSON
+        let isJsonData = false;
+        try {
+          const textDecoder = new TextDecoder();
+          const dataStr = textDecoder.decode(event instanceof ArrayBuffer ? event : event.buffer);
+          // 检查是否像JSON字符串
+          if (dataStr.trim().startsWith('{') && dataStr.trim().endsWith('}')) {
+            console.log('[WebRTC] 二进制数据可能是JSON字符串，尝试解析');
+            try {
+              data = JSON.parse(dataStr);
+              console.log(`[WebRTC] 成功从二进制数据解析JSON, 类型: ${data.type}`);
+              
+              // 如果解析成功且具有类型，标记为JSON数据
+              if (data && data.type) {
+                isJsonData = true;
+              }
+            } catch (jsonError) {
+              console.log('[WebRTC] 无法将二进制数据解析为JSON，尝试作为点云数据处理');
+              // JSON解析失败，继续尝试作为点云数据处理
+            }
+          }
+        } catch (strError) {
+          console.log('[WebRTC] 无法将二进制数据转换为字符串，尝试作为点云数据处理');
+          // 字符串转换失败，继续尝试作为点云数据处理
+        }
+        
+        // 如果已成功解析为JSON数据，跳过点云处理
+        if (isJsonData) {
+          // 已经是JSON数据，继续处理
+        } else {
+          // 如果无法解析为JSON或不是有效的消息类型，假设它是点云数据
+          console.log('[WebRTC] 尝试将二进制数据作为点云数据处理');
+          data = {
+            type: 'pointCloudData',
+            binaryFormat: true
+          };
+          
+          // 处理点云二进制数据
+          try {
+            const buffer = event instanceof ArrayBuffer ? event : event.buffer;
+            const float32Array = new Float32Array(buffer);
+            const totalLength = float32Array.length;
+            const halfLength = totalLength / 2;
+            
+            // 分割为positions和colors
+            const positions = float32Array.subarray(0, halfLength);
+            const colors = float32Array.subarray(halfLength);
+            
+            console.log(`[WebRTC] 从二进制数据提取: 位置数组长度=${positions.length}, 颜色数组长度=${colors.length}`);
+            
+            // 调用回调函数处理点云数据
+            if (this.onPointCloudDataCallback) {
+              console.log('[WebRTC] 调用点云数据回调处理二进制数据');
+              this.onPointCloudDataCallback(positions, colors);
+              return;
+            } else {
+              console.warn('[WebRTC] 接收到点云数据，但未设置处理回调函数');
+              return;
+            }
+          } catch (binaryError) {
+            console.error('[WebRTC] 处理二进制点云数据失败:', binaryError);
+            // 既不是JSON也不是点云数据，无法处理
+            console.error('[WebRTC] 收到的二进制数据无法解析为JSON或点云数据');
+            return;
+          }
+        }
+      } else if (event && event.data) {
+        // 如果是MessageEvent对象
+        const rawData = event.data;
+        console.log('[WebRTC] 从事件中提取数据, 类型:', typeof rawData);
+        
+        if (typeof rawData === 'string') {
+          try {
+            data = JSON.parse(rawData);
+          } catch (parseError) {
+            console.error('[WebRTC] 解析事件中的JSON字符串失败:', parseError);
+            return;
+          }
+        } else {
+          // 递归调用自身处理非字符串数据
+          console.log('[WebRTC] 递归处理非字符串事件数据');
+          return this.handleDataChannelMessage(rawData);
+        }
+      } else {
+        console.error('[WebRTC] 无法处理的数据格式:', event);
+        return;
       }
       
-      // 解析JSON数据
-      const data = JSON.parse(dataStr);
-      console.log(`[WebRTC] [接收] 数据类型: ${data.type}, 数据长度: ${dataStr.length}`);
+      // 如果已经处理了二进制点云数据，直接返回
+      if (data && data.binaryFormat === true) {
+        return;
+      }
       
-      // 处理不同类型的消息
+      // 如果成功解析为JSON对象，处理不同类型的消息
+      console.log(`[WebRTC] [接收] 数据类型: ${data.type}`);
+      
       switch (data.type) {
         case 'pointCloudData':
           // 处理点云数据
@@ -823,42 +897,15 @@ class WebRTCManager {
           const positions = new Float32Array(data.positions);
           const colors = new Float32Array(data.colors);
           
-          // 数据验证
+          // 简化验证，只做基本长度检查
           if (positions.length !== colors.length) {
             console.error(`[WebRTC] 点云数据不匹配: 位置长度(${positions.length}) 不等于颜色长度(${colors.length})`);
             return;
           }
           
-          // 验证数据是否为3的倍数 (x,y,z坐标)
-          if (positions.length % 3 !== 0) {
-            console.error(`[WebRTC] 点云数据无效: 位置数据长度(${positions.length})不是3的倍数`);
-            return;
-          }
-          
-          // 检查数据是否包含有效数值
-          let hasInvalidData = false;
-          // 仅检查前9个值作为样本（前3个点）
-          for (let i = 0; i < Math.min(9, positions.length); i++) {
-            if (!isFinite(positions[i])) {
-              console.error(`[WebRTC] 点云包含无效位置数据: positions[${i}] = ${positions[i]}`);
-              hasInvalidData = true;
-              break;
-            }
-          }
-          
-          if (hasInvalidData) {
-            console.error('[WebRTC] 点云数据验证失败，包含无效数值');
-            return;
-          }
-          
-          // 记录一些调试信息
-          const now = Date.now();
-          const latency = data.timestamp ? now - data.timestamp : 'unknown';
-          console.log(`[WebRTC] 接收点云数据: 位置长度=${positions.length}, 颜色长度=${colors.length}, 延迟=${latency}ms`);
-          
           // 调用回调函数处理点云数据
           if (this.onPointCloudDataCallback) {
-            console.log('[WebRTC] 开始调用点云数据回调函数');
+            console.log('[WebRTC] 调用点云数据回调函数');
             try {
               this.onPointCloudDataCallback(positions, colors);
               console.log('[WebRTC] 点云数据回调函数执行完成');
@@ -885,7 +932,6 @@ class WebRTCManager {
             }
           } else {
             console.warn('[WebRTC] 收到视图模式切换请求，但未找到 handleRemoteViewModeChange 全局函数');
-            console.log('[WebRTC] 当前可用的全局函数:', Object.keys(window).filter(key => typeof window[key] === 'function').join(', '));
           }
           break;
           
@@ -910,9 +956,17 @@ class WebRTCManager {
     } catch (error) {
       console.error('[WebRTC] 处理数据通道消息时出错:', error);
       try {
-        console.log('[WebRTC] 原始消息内容:', typeof event.data === 'string' ? 
-          event.data.substring(0, 100) + '...' : 
+        console.log('[WebRTC] 原始消息内容:', typeof event === 'string' ? 
+          event.substring(0, 100) + '...' : 
           '(非文本数据)');
+        
+        // 如果是对象，输出更多信息以便调试
+        if (typeof event === 'object' && event !== null) {
+          console.log('[WebRTC] 消息对象属性:', Object.keys(event));
+          if (event.constructor && event.constructor.name) {
+            console.log('[WebRTC] 消息对象类型:', event.constructor.name);
+          }
+        }
       } catch (e) {
         console.error('[WebRTC] 无法记录原始消息:', e);
       }
@@ -924,8 +978,8 @@ class WebRTCManager {
    * @param {number} originalTimestamp - 原始测试消息的时间戳
    */
   sendTestResponse(originalTimestamp) {
-    if (!this.dataChannel || this.dataChannel.readyState !== 'open') {
-      console.warn('[WebRTC] 无法发送测试响应: 数据通道未打开');
+    if (!this.peer || !this.peer.connected) {
+      console.warn('[WebRTC] 无法发送测试响应: 对等连接未建立');
       return false;
     }
     
@@ -937,7 +991,7 @@ class WebRTCManager {
         timestamp: Date.now()
       };
       
-      this.dataChannel.send(JSON.stringify(response));
+      this.peer.send(JSON.stringify(response));
       console.log('[WebRTC] 已发送测试响应');
       return true;
     } catch (error) {
@@ -985,5 +1039,19 @@ class WebRTCManager {
   setPointCloudDataCallback(callback) {
     console.log('[WebRTC] 设置点云数据回调函数', callback ? '已提供' : '未提供');
     this.onPointCloudDataCallback = callback;
+  }
+  
+  // 添加重连方法
+  reconnect() {
+    console.log('[WebRTC] 开始重新连接...');
+    if (this.peer) {
+      this.peer.destroy();
+      this.peer = null;
+    }
+    if (this.dataChannel) {
+      this.dataChannel.close();
+      this.dataChannel = null;
+    }
+    this.init();
   }
 } 

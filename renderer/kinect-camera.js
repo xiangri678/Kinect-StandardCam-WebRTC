@@ -58,7 +58,10 @@ class KinectCameraManager {
     
     // 基本属性初始化
     this.isRunning = false;
-    this.colorCanvas = document.getElementById('localVideo');
+    this.localCanvas = document.getElementById('localVideo');
+    this.remoteCanvas = document.getElementById('remoteVideo');
+    this.colorCanvas = document.getElementById('localVideo'); // 用于渲染点云的 canva，后续判断 isMac 后再重新赋值
+
     this.colorCtx = this.colorCanvas ? this.colorCanvas.getContext('2d') : null;
     
     // Kinect 相关属性
@@ -221,6 +224,9 @@ class KinectCameraManager {
     // 检测是否为Mac系统
     const isMac = navigator.platform.indexOf('Mac') !== -1;
     console.log(`当前系统: ${isMac ? 'Mac OS' : '非Mac系统'}`);
+    if (isMac) {
+      this.colorCanvas = this.remoteCanvas;
+    }
     
     // 更新视图模式
     this.viewMode = mode;
@@ -232,34 +238,10 @@ class KinectCameraManager {
       try {
         this.setupPointCloud();
         console.log('✔😈王冠达：点云初始化函数已通过');
-        // Mac系统特殊处理 - 保持两个Canvas都可见，但使用z-index控制
-        // if (isMac) {
-        //   console.log('Mac系统特殊处理：保持原始Canvas可见');
-          
-        //   // 调整原始Canvas，防止隐藏
-        //   if (this.colorCanvas) {
-        //     this.colorCanvas.style.display = 'block';
-        //     this.colorCanvas.style.position = 'absolute';
-        //     this.colorCanvas.style.zIndex = '1';
-        //   }
-          
-        //   // 调整点云Canvas
-        //   if (this.pointCloudCanvas) {
-        //     this.pointCloudCanvas.style.position = 'absolute';
-        //     this.pointCloudCanvas.style.zIndex = '2';
-        //     // 使用相同的样式以确保叠放正确
-        //     if (this.colorCanvas && this.colorCanvas.parentNode) {
-        //       const parentStyle = window.getComputedStyle(this.colorCanvas.parentNode);
-        //       this.pointCloudCanvas.style.top = this.colorCanvas.offsetTop + 'px';
-        //       this.pointCloudCanvas.style.left = this.colorCanvas.offsetLeft + 'px';
-        //     }
-        //   }
-        // } else {
-          // 非Mac系统 - 隐藏彩色Canvas
+        // 隐藏彩色Canvas
         if (this.colorCanvas) {
           this.colorCanvas.style.display = 'none';
         }
-        // }
         
         // 如果之前有回调，确保点云Canvas也应用相同的回调
         if (previousCallback && this.pointCloudCanvas) {
@@ -301,14 +283,15 @@ class KinectCameraManager {
       if (this.colorCanvas) {
         this.colorCanvas.style.display = 'block';
         // 移除可能添加的定位样式
-        if (isMac) {
-          this.colorCanvas.style.position = '';
-          this.colorCanvas.style.zIndex = '';
-        }
+        // if (isMac) {
+        //   this.colorCanvas.style.position = '';
+        //   this.colorCanvas.style.zIndex = '';
+        // }
       }
       
       // 恢复回调到彩色Canvas
       this.onFrameCallback = previousCallback;
+      console.log('切换到彩色视频模式，恢复回调到彩色Canvas')
     }
     
     // 确保更新媒体流
@@ -958,15 +941,24 @@ class KinectCameraManager {
       console.warn('无法更新点云：点云对象或深度模式范围未设置');
       return;
     }
+
+    // 激进的节流：每1000ms最多更新一次
+    const now = Date.now();
+    if (this._lastUpdateTime && now - this._lastUpdateTime < 1000) {
+      return;
+    }
+    this._lastUpdateTime = now;
+
+    // 激进的降采样：只保留5%的点
+    const sampleRate = 20; // 改这里就可以调节点云密度，降采样率
+    const positions = new Float32Array(Math.floor(this.pointCloud.geometry.attributes.position.array.length / sampleRate));
+    const colors = new Float32Array(Math.floor(this.pointCloud.geometry.attributes.color.array.length / sampleRate));
     
-    const positions = this.pointCloud.geometry.attributes.position.array;
-    const colors = this.pointCloud.geometry.attributes.color.array;
-    
-    // 读取深度和颜色数据
-    for (let i = 0, j = 0; i < depthData.length; i += 2, j += 3) {
+    // 读取深度和颜色数据，并进行降采样
+    for (let i = 0, j = 0; i < depthData.length; i += 2 * sampleRate, j += 3) {
       const depthValue = depthData[i + 1] << 8 | depthData[i];
       
-      const colorIndex = j / 3 * 4;
+      const colorIndex = (j / 3) * 4 * sampleRate;
       const b = colorData[colorIndex + 0] / 255;
       const g = colorData[colorIndex + 1] / 255;
       const r = colorData[colorIndex + 2] / 255;
@@ -986,27 +978,31 @@ class KinectCameraManager {
       }
     }
     
+    console.log(`[Kinect] 点云数据降采样: ${depthData.length/2} -> ${positions.length/3} 个点`);
+    
+    this.pointCloud.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    this.pointCloud.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     this.pointCloud.geometry.attributes.position.needsUpdate = true;
     this.pointCloud.geometry.attributes.color.needsUpdate = true;
     
     // 请求渲染一帧
     if (this.threeJsRenderer && this.threeJsScene && this.threeJsCamera) {
       this.threeJsRenderer.render(this.threeJsScene, this.threeJsCamera);
+      console.log('[Kinect] 本地渲染了一帧点云');
     }
     
     // 如果是点云模式且WebRTC连接已建立，发送点云数据
     if (this.viewMode === 'pointCloud' && window.webrtcManager) {
-      // 无论连接状态如何，都尝试记录一些信息
       const isConnected = window.webrtcManager.isConnected;
       const hasDataChannel = window.webrtcManager.dataChannel;
       
-      console.log(`点云数据准备发送，WebRTC连接状态: ${isConnected ? '已连接' : '未连接'}, 数据通道状态: ${hasDataChannel ? '已创建' : '未创建'}`);
+      console.log(`[Kinect] 点云数据准备发送，WebRTC连接状态: ${isConnected ? '已连接' : '未连接'}, 数据通道状态: ${hasDataChannel ? '已创建' : '未创建'}`);
       
       if (isConnected && hasDataChannel) {
-        console.log('通过WebRTC数据通道发送点云数据');
+        console.log('[Kinect] 通过WebRTC数据通道发送点云数据');
         window.webrtcManager.sendPointCloudData(positions, colors);
       } else if (isConnected && !hasDataChannel) {
-        console.log('尝试创建数据通道');
+        console.log('[Kinect] 尝试创建数据通道');
         window.webrtcManager.createDataChannel();
       }
     }
