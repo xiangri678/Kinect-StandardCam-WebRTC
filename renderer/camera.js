@@ -630,8 +630,11 @@ class CameraManager {
       // 深度图尺寸
       const DEPTH_WIDTH = 640;
       const DEPTH_HEIGHT = 576;
-      const numPoints = DEPTH_WIDTH * DEPTH_HEIGHT;
+      let numPoints = DEPTH_WIDTH * DEPTH_HEIGHT;
       console.log(`准备创建点云，点数: ${numPoints}`);
+
+      const sampleRate = 4;
+      numPoints = Math.floor(numPoints / sampleRate);
       
       // 创建几何体 - 使用BufferGeometry
       const geometry = new THREE.BufferGeometry();

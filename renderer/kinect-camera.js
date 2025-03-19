@@ -942,17 +942,56 @@ class KinectCameraManager {
       return;
     }
 
+    const positions = this.pointCloud.geometry.attributes.position.array;
+    const colors = this.pointCloud.geometry.attributes.color.array;
+
+    // 读取深度和颜色数据
+     for (let i = 0, j = 0; i < depthData.length; i += 2, j += 3) {
+       const depthValue = depthData[i + 1] << 8 | depthData[i];
+ 
+       const colorIndex = j / 3 * 4;
+       const b = colorData[colorIndex + 0] / 255;
+       const g = colorData[colorIndex + 1] / 255;
+       const r = colorData[colorIndex + 2] / 255;
+ 
+       if (depthValue > this.depthModeRange.min && depthValue < this.depthModeRange.max) {
+         positions[j + 2] = depthValue;
+ 
+         colors[j] = r;
+         colors[j + 1] = g;
+         colors[j + 2] = b;
+       } else {
+         positions[j + 2] = Number.MAX_VALUE;
+ 
+         colors[j] = 0;
+         colors[j + 1] = 0;
+         colors[j + 2] = 0;
+       }
+     }
+    
+    this.pointCloud.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    this.pointCloud.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    this.pointCloud.geometry.attributes.position.needsUpdate = true;
+    this.pointCloud.geometry.attributes.color.needsUpdate = true;
+
+    console.log('position 和 color 原始数据：', positions, colors, Date.now());
+
+     // 请求渲染一帧
+     if (this.threeJsRenderer && this.threeJsScene && this.threeJsCamera) {
+       this.threeJsRenderer.render(this.threeJsScene, this.threeJsCamera);
+       console.log('[Kinect] 本地渲染了一帧点云');
+     }
+
+    this._lastUpdateTime = now;
     // 激进的节流：每1000ms最多更新一次
-    const now = Date.now();
     if (this._lastUpdateTime && now - this._lastUpdateTime < 1000) {
       return;
     }
-    this._lastUpdateTime = now;
 
-    // 激进的降采样：只保留5%的点
-    const sampleRate = 20; // 改这里就可以调节点云密度，降采样率
-    const positions = new Float32Array(Math.floor(this.pointCloud.geometry.attributes.position.array.length / sampleRate));
-    const colors = new Float32Array(Math.floor(this.pointCloud.geometry.attributes.color.array.length / sampleRate));
+    // 激进的降采样：只保留50%的点
+    const sampleRate = 2; // 改这里就可以调节点云密度，降采样率
+    const downPositions = new Float32Array(Math.floor(this.pointCloud.geometry.attributes.position.array.length / sampleRate));
+    const downColors = new Float32Array(Math.floor(this.pointCloud.geometry.attributes.color.array.length / sampleRate));
     
     // 读取深度和颜色数据，并进行降采样
     for (let i = 0, j = 0; i < depthData.length; i += 2 * sampleRate, j += 3) {
@@ -964,32 +1003,21 @@ class KinectCameraManager {
       const r = colorData[colorIndex + 2] / 255;
       
       if (depthValue > this.depthModeRange.min && depthValue < this.depthModeRange.max) {
-        positions[j + 2] = depthValue;
+        downPositions[j + 2] = depthValue;
         
-        colors[j] = r;
-        colors[j + 1] = g;
-        colors[j + 2] = b;
+        downColors[j] = r;
+        downColors[j + 1] = g;
+        downColors[j + 2] = b;
       } else {
-        positions[j + 2] = Number.MAX_VALUE;
+        downPositions[j + 2] = Number.MAX_VALUE;
         
-        colors[j] = 0;
-        colors[j + 1] = 0;
-        colors[j + 2] = 0;
+        downColors[j] = 0;
+        downColors[j + 1] = 0;
+        downColors[j + 2] = 0;
       }
     }
     
-    console.log(`[Kinect] 点云数据降采样: ${depthData.length/2} -> ${positions.length/3} 个点`);
-    
-    this.pointCloud.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    this.pointCloud.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    this.pointCloud.geometry.attributes.position.needsUpdate = true;
-    this.pointCloud.geometry.attributes.color.needsUpdate = true;
-    
-    // 请求渲染一帧
-    if (this.threeJsRenderer && this.threeJsScene && this.threeJsCamera) {
-      this.threeJsRenderer.render(this.threeJsScene, this.threeJsCamera);
-      console.log('[Kinect] 本地渲染了一帧点云');
-    }
+    console.log(`[Kinect] 点云数据降采样: ${depthData.length/2} -> ${downPositions.length/3} 个点`);
     
     // 如果是点云模式且WebRTC连接已建立，发送点云数据
     if (this.viewMode === 'pointCloud' && window.webrtcManager) {
@@ -1000,7 +1028,7 @@ class KinectCameraManager {
       
       if (isConnected && hasDataChannel) {
         console.log('[Kinect] 通过WebRTC数据通道发送点云数据');
-        window.webrtcManager.sendPointCloudData(positions, colors);
+        window.webrtcManager.sendPointCloudData(downPositions, downColors);
       } else if (isConnected && !hasDataChannel) {
         console.log('[Kinect] 尝试创建数据通道');
         window.webrtcManager.createDataChannel();

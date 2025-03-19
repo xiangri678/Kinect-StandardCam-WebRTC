@@ -287,7 +287,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   
   // 连接Kinect和WebRTC模块
-  function setupPointCloudDataTransfer() {
+  function setupPointCloudDataTransfer(enablePointCloudMode = false) {
     if (!webrtcManager || !cameraManager) {
       console.error('[App] WebRTC或摄像头管理器未初始化，无法设置点云数据传输');
       return;
@@ -296,9 +296,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('[App] 开始设置点云数据传输...');
     addLog('系统', '设置点云数据传输...');
     
-    // 首先确保WebRTC启用了点云模式
-    console.log('[App] 启用WebRTC点云模式');
-    webrtcManager.setPointCloudMode(true);
+    // 根据参数决定是否启用点云模式
+    if (enablePointCloudMode) {
+      console.log('[App] 启用WebRTC点云模式');
+      webrtcManager.setPointCloudMode(true);
+    }
     
     // 记录重要对象
     window._debugCameraManager = cameraManager;
@@ -444,15 +446,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     addLog('系统', '点云数据传输已配置');
   }
   
-  // 在WebRTC连接建立后设置点云数据传输
+  // 在 WebRTC 初始化后立即设置回调函数，但不强制启用点云模式
   if (webrtcManager) {
+    // 设置点云数据回调函数但不立即启用点云模式
+    console.log('[App] 设置点云数据回调函数（不启用点云模式）');
+    
+    // 只设置回调，不启用点云模式
+    setupPointCloudDataTransfer(false);
+    
+    // 然后设置连接回调
     const originalConnectedCallback = webrtcManager.onConnectedCallback;
     webrtcManager.onConnectedCallback = function() {
       if (originalConnectedCallback) {
         originalConnectedCallback();
       }
       
-      setupPointCloudDataTransfer();
+      // 连接后根据用户界面选择决定是否启用点云模式
+      const viewModeSelect = document.getElementById('viewModeSelect');
+      const currentMode = viewModeSelect ? viewModeSelect.value : 'color';
+      
+      if (currentMode === 'pointCloud') {
+        console.log('[App] 根据用户选择启用点云模式');
+        webrtcManager.setPointCloudMode(true);
+        webrtcManager.createDataChannel();
+      }
     };
   }
   

@@ -1028,6 +1028,9 @@ class WebRTCManager {
     console.log(`[WebRTC] 设置点云模式: ${enabled ? '启用' : '禁用'}`);
     this.pointCloudMode = enabled;
     
+    // 记录回调函数状态
+    console.log(`[WebRTC] 当前点云回调函数状态: ${this.onPointCloudDataCallback ? '已设置' : '未设置'}`);
+    
     // 如果已经连接，且启用点云模式，创建数据通道
     if (this.isConnected && enabled && !this.dataChannel) {
       console.log('[WebRTC] 点云模式已启用且已连接，创建数据通道');
