@@ -227,8 +227,8 @@ class CameraManager {
     console.log('开始帧循环');
     
     const processFrame = () => {
-      // 检查视频是否已准备好
-      if (this.videoElement.readyState === 4) {
+      // 检查视频是否已准备好以及Canvas是否存在
+      if (this.videoElement && this.videoElement.readyState === 4 && this.colorCanvas && this.colorCtx) {
         // 调整Canvas尺寸以匹配视频
         if (this.colorCanvas.width !== this.videoElement.videoWidth || 
             this.colorCanvas.height !== this.videoElement.videoHeight) {
@@ -249,6 +249,12 @@ class CameraManager {
           };
           
           this.onFrameCallback(frameData);
+        }
+      } else {
+        if (!this.colorCanvas) {
+          console.warn('Canvas元素未找到，帧处理暂停');
+        } else if (!this.videoElement) {
+          console.warn('视频元素未找到，帧处理暂停');
         }
       }
       

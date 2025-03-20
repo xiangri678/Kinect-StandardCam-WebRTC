@@ -109,10 +109,11 @@ function createWindow() {
   // 窗口创建后立即最大化
   mainWindow.maximize();
 
-  const indexPath = path.join(__dirname, 'renderer/index.html');
+  // const indexPath = path.join(__dirname, 'renderer/login.html'); // 新版代码
+  const indexPath = path.join(__dirname, 'renderer/index.html'); // 老版代码
   console.log(`加载页面: ${indexPath}`);
   
-  // 加载应用的 index.html
+  // 加载应用的 login.html
   mainWindow.loadFile(indexPath);
 
   // 打开开发者工具，用于调试
@@ -154,10 +155,10 @@ function createClientWindow() {
     title: 'StandardCam WebRTC 客户端测试窗口'
   });
 
-  const indexPath = path.join(__dirname, 'renderer/index.html');
+  const indexPath = path.join(__dirname, 'renderer/login.html');
   console.log(`客户端窗口加载页面: ${indexPath}`);
   
-  // 加载应用的 index.html
+  // 加载应用的 login.html
   clientWindow.loadFile(indexPath);
   
   // 打开开发者工具
@@ -166,10 +167,9 @@ function createClientWindow() {
   // 窗口准备好后自动填充连接信息
   clientWindow.webContents.on('did-finish-load', () => {
     clientWindow.webContents.executeJavaScript(`
-      document.getElementById('roomIdInput').value = '1';
-      document.getElementById('userIdInput').value = '测试客户端';
-      document.getElementById('serverUrlInput').value = 'http://localhost:3001';
-      document.getElementById('connectionStatus').textContent = '准备连接到本地服务器';
+      document.getElementById('roomId').value = '1';
+      document.getElementById('userName').value = '测试客户端';
+      document.getElementById('serverUrl').value = 'http://localhost:3001';
     `);
   });
 }

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <!-- 渐变定义 -->
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3498db;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8e44ad;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 相机图标 -->
+  <rect x="10" y="15" width="40" height="30" rx="5" fill="url(#grad1)" />
+  <circle cx="30" cy="30" r="10" fill="#fff" opacity="0.85" />
+  <circle cx="30" cy="30" r="5" fill="#333" />
+  <polygon points="50,25 60,20 60,40 50,35" fill="url(#grad1)" />
+  
+  <!-- 点云效果 -->
+  <g fill="#fff" opacity="0.7">
+    <circle cx="70" cy="20" r="1.5" />
+    <circle cx="75" cy="25" r="1.5" />
+    <circle cx="80" cy="30" r="1.5" />
+    <circle cx="72" cy="30" r="1.5" />
+    <circle cx="78" cy="22" r="1.5" />
+    <circle cx="68" cy="28" r="1.5" />
+    <circle cx="76" cy="35" r="1.5" />
+    <circle cx="82" cy="25" r="1.5" />
+    <circle cx="70" cy="40" r="1.5" />
+  </g>
+  
+  <!-- 文字部分 -->
+  <text x="90" y="30" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#3498db">Kinect</text>
+  <text x="90" y="45" font-family="Arial, sans-serif" font-size="14" fill="#8e44ad">会议系统</text>
+</svg> 

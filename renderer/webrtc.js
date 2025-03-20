@@ -22,6 +22,8 @@ class WebRTCManager {
     this.onDisconnectedCallback = null;
     this.onRemoteStreamCallback = null;
     this.onErrorCallback = null;
+    this.onUserJoinedCallback = null;
+    this.onUserLeftCallback = null;
     
     // 调试模式
     this.debug = true;
@@ -107,6 +109,12 @@ class WebRTCManager {
     this.socket.on('user-connected', (userId) => {
       this.log(`用户 ${userId} 已加入房间`);
       this.updateStatus(`用户 ${userId} 已加入，正在建立连接...`);
+      
+      // 调用用户加入回调
+      if (this.onUserJoinedCallback) {
+        this.onUserJoinedCallback(userId);
+      }
+      
       this.connectToPeer(userId, true);
     });
     
@@ -114,6 +122,12 @@ class WebRTCManager {
     this.socket.on('user-disconnected', (userId) => {
       this.log(`用户 ${userId} 已离开房间`);
       this.updateStatus(`用户 ${userId} 已离开房间`);
+      
+      // 调用用户离开回调
+      if (this.onUserLeftCallback) {
+        this.onUserLeftCallback(userId);
+      }
+      
       // 如果有必要，清理与此用户的连接
     });
     
@@ -578,6 +592,8 @@ class WebRTCManager {
     if (callbacks.onDisconnected) this.onDisconnectedCallback = callbacks.onDisconnected;
     if (callbacks.onRemoteStream) this.onRemoteStreamCallback = callbacks.onRemoteStream;
     if (callbacks.onError) this.onErrorCallback = callbacks.onError;
+    if (callbacks.onUserJoined) this.onUserJoinedCallback = callbacks.onUserJoined;
+    if (callbacks.onUserLeft) this.onUserLeftCallback = callbacks.onUserLeft;
   }
   
   close() {
@@ -1057,4 +1073,9 @@ class WebRTCManager {
     }
     this.init();
   }
-} 
+}
+
+// 导出模块
+module.exports = {
+  WebRTCManager: WebRTCManager
+}; 

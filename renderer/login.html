@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src *;"
+    />
+    <title>Kinect Azure 会议系统</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: "Microsoft YaHei", "PingFang SC", "Arial", sans-serif;
+      }
+
+      body {
+        background: linear-gradient(120deg, #2980b9, #8e44ad);
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+      }
+
+      .login-container {
+        background-color: rgba(255, 255, 255, 0.95);
+        border-radius: 10px;
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+        width: 400px;
+        padding: 40px;
+        text-align: center;
+        position: relative;
+        z-index: 1;
+        backdrop-filter: blur(5px);
+      }
+
+      .login-container h1 {
+        color: #2c3e50;
+        margin-bottom: 30px;
+        font-weight: 600;
+      }
+
+      .login-form {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        text-align: left;
+      }
+
+      .form-group label {
+        margin-bottom: 8px;
+        color: #34495e;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .form-group input {
+        padding: 12px 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 14px;
+        transition: border 0.3s;
+      }
+
+      .form-group input:focus {
+        border-color: #3498db;
+        outline: none;
+      }
+
+      .login-btn {
+        background-color: #3498db;
+        color: white;
+        border: none;
+        padding: 14px;
+        border-radius: 5px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.3s;
+        margin-top: 10px;
+      }
+
+      .login-btn:hover {
+        background-color: #2980b9;
+      }
+
+      .logo {
+        margin-bottom: 20px;
+      }
+
+      .logo img {
+        height: 60px;
+      }
+
+      .particles {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+      }
+
+      @media (max-width: 480px) {
+        .login-container {
+          width: 90%;
+          padding: 30px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="particles" id="particles-js"></div>
+    <div class="login-container">
+      <div class="logo">
+        <img src="assets/images/logo.svg" alt="Kinect Azure 会议系统" />
+      </div>
+      <h1>Kinect Azure 会议系统</h1>
+      <form class="login-form" id="loginForm">
+        <div class="form-group">
+          <label for="roomId">会议房间号</label>
+          <input
+            type="text"
+            id="roomId"
+            placeholder="请输入会议房间号"
+            value="1"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="userName">您的姓名</label>
+          <input
+            type="text"
+            id="userName"
+            placeholder="请输入您的姓名"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="serverUrl">服务器地址</label>
+          <input
+            type="text"
+            id="serverUrl"
+            placeholder="请输入服务器地址"
+            value="http://10.29.196.83:3001"
+            required
+          />
+        </div>
+        <button type="submit" class="login-btn">加入会议</button>
+      </form>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/particles.js/2.0.0/particles.min.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        // 初始化粒子背景
+        particlesJS("particles-js", {
+          particles: {
+            number: {
+              value: 80,
+              density: {
+                enable: true,
+                value_area: 800,
+              },
+            },
+            color: {
+              value: "#ffffff",
+            },
+            shape: {
+              type: "circle",
+              stroke: {
+                width: 0,
+                color: "#000000",
+              },
+            },
+            opacity: {
+              value: 0.5,
+              random: false,
+              anim: {
+                enable: false,
+                speed: 1,
+                opacity_min: 0.1,
+                sync: false,
+              },
+            },
+            size: {
+              value: 3,
+              random: true,
+              anim: {
+                enable: false,
+                speed: 40,
+                size_min: 0.1,
+                sync: false,
+              },
+            },
+            line_linked: {
+              enable: true,
+              distance: 150,
+              color: "#ffffff",
+              opacity: 0.4,
+              width: 1,
+            },
+            move: {
+              enable: true,
+              speed: 2,
+              direction: "none",
+              random: false,
+              straight: false,
+              out_mode: "out",
+              bounce: false,
+              attract: {
+                enable: false,
+                rotateX: 600,
+                rotateY: 1200,
+              },
+            },
+          },
+          interactivity: {
+            detect_on: "canvas",
+            events: {
+              onhover: {
+                enable: true,
+                mode: "repulse",
+              },
+              onclick: {
+                enable: true,
+                mode: "push",
+              },
+              resize: true,
+            },
+            modes: {
+              repulse: {
+                distance: 100,
+                duration: 0.4,
+              },
+              push: {
+                particles_nb: 4,
+              },
+            },
+          },
+          retina_detect: true,
+        });
+
+        // 设置表单提交事件
+        const loginForm = document.getElementById("loginForm");
+        loginForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+
+          const roomId = document.getElementById("roomId").value;
+          const userName = document.getElementById("userName").value;
+          const serverUrl = document.getElementById("serverUrl").value;
+
+          // 存储会话数据
+          localStorage.setItem("meetingRoomId", roomId);
+          localStorage.setItem("meetingUserName", userName);
+          localStorage.setItem("meetingServerUrl", serverUrl);
+
+          // 重定向到会议室页面
+          window.location.href = "meeting.html";
+        });
+
+        // 根据操作系统自动填写用户名
+        const userNameInput = document.getElementById("userName");
+        if (userNameInput) {
+          const os = navigator.platform.toLowerCase();
+          if (os.includes("win")) {
+            userNameInput.value = "Win用户";
+          } else if (os.includes("mac")) {
+            userNameInput.value = "Mac用户";
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
