@@ -33,13 +33,21 @@ io.on('connection', (socket) => {
     console.log(`用户 ${userId} 加入房间 ${roomId}`);
     socket.join(roomId);
     
+    // 获取房间内所有用户
+    const room = io.sockets.adapter.rooms.get(roomId);
+    const participants = room ? Array.from(room).map(socketId => {
+      const socket = io.sockets.sockets.get(socketId);
+      return socket.userId || socketId;
+    }) : [];
+    
     // 通知房间内其他人有新用户加入
     socket.to(roomId).emit('user-connected', userId);
     
-    // 发送加入确认
+    // 发送加入确认，包含当前房间用户列表
     socket.emit('room-joined', {
       room: roomId,
-      id: userId
+      id: userId,
+      participants: participants
     });
     
     // 断开连接时通知其他用户
@@ -109,8 +117,8 @@ function createWindow() {
   // 窗口创建后立即最大化
   mainWindow.maximize();
 
-  // const indexPath = path.join(__dirname, 'renderer/login.html'); // 新版代码
-  const indexPath = path.join(__dirname, 'renderer/index.html'); // 老版代码
+  const indexPath = path.join(__dirname, 'renderer/login.html'); // 新版代码
+  // const indexPath = path.join(__dirname, 'renderer/index.html'); // 老版代码
   console.log(`加载页面: ${indexPath}`);
   
   // 加载应用的 login.html

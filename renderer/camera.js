@@ -14,7 +14,17 @@ class CameraManager {
     
     // 基本属性初始化
     this.isRunning = false;
-    this.colorCanvas = document.getElementById('localVideo');
+    
+    // 使用新的分层设计查找元素
+    this.colorCanvas = document.getElementById('localVideoCanvas');
+    this.pointCloudCanvas = document.getElementById('localPointCloudCanvas');
+    
+    // 如果找不到元素，可能是在旧结构中，做兼容处理
+    if (!this.colorCanvas) {
+      console.log('未找到新的分层结构元素，尝试使用旧版元素结构');
+      this.colorCanvas = document.getElementById('localVideo');
+    }
+    
     this.colorCtx = this.colorCanvas ? this.colorCanvas.getContext('2d') : null;
     this.videoElement = null; // 用于显示摄像头视频的元素
     this.mediaStream = null; // 媒体流
@@ -25,7 +35,6 @@ class CameraManager {
     
     // 点云相关属性
     this.viewMode = 'color'; // 'color' 或 'pointCloud'
-    this.pointCloudCanvas = null;
     this.pointCloudEnabled = false;
     this.threeJsRenderer = null;
     this.threeJsScene = null;
@@ -571,24 +580,18 @@ class CameraManager {
     try {
       console.log('开始初始化点云环境...');
       
-      // 清理任何已存在的点云Canvas
+      // 清理任何已存在的点云资源
       this.cleanupPointCloud();
       
-      // 创建新的Canvas元素用于点云
-      this.pointCloudCanvas = document.createElement('canvas');
+      // 使用已有的点云Canvas
+      if (!this.pointCloudCanvas) {
+        console.error('无法找到点云Canvas元素');
+        throw new Error('点云Canvas元素不存在');
+      }
+      
+      // 设置点云Canvas尺寸
       this.pointCloudCanvas.width = 640;
       this.pointCloudCanvas.height = 480;
-      this.pointCloudCanvas.style.display = 'block';
-      this.pointCloudCanvas.id = 'pointCloudCanvas'; // 添加ID便于调试
-      
-      // 将点云Canvas添加到DOM中，替换彩色Canvas的位置
-      if (this.colorCanvas && this.colorCanvas.parentNode) {
-        this.colorCanvas.parentNode.insertBefore(this.pointCloudCanvas, this.colorCanvas.nextSibling);
-        console.log('点云Canvas已添加到DOM');
-      } else {
-        document.body.appendChild(this.pointCloudCanvas);
-        console.log('点云Canvas已添加到body');
-      }
       
       // 创建Three.js场景
       this.threeJsScene = new THREE.Scene();
@@ -602,7 +605,7 @@ class CameraManager {
       this.threeJsCamera.lookAt(0, 0, 0);
       console.log('THREE.js相机已设置', this.threeJsCamera.position);
       
-      // 渲染器 - 使用新创建的Canvas
+      // 渲染器 - 使用已有的Canvas
       this.threeJsRenderer = new THREE.WebGLRenderer({
         canvas: this.pointCloudCanvas,
         antialias: true,
@@ -658,9 +661,10 @@ class CameraManager {
         positions[i * 3 + 1] = y;
         positions[i * 3 + 2] = 0;
         
-        colors[i * 3] = 0;
-        colors[i * 3 + 1] = 0;
-        colors[i * 3 + 2] = 0;
+        // 设置初始颜色为灰色
+        colors[i * 3] = 0.2;
+        colors[i * 3 + 1] = 0.2;
+        colors[i * 3 + 2] = 0.2;
       }
       
       // 设置属性
@@ -679,9 +683,6 @@ class CameraManager {
       this.threeJsScene.add(this.pointCloud);
       console.log('点云已添加到场景');
       
-      // 更新WebRTC的媒体流以使用新的Canvas
-      this.updateMediaStream();
-      
       // 开始渲染循环
       console.log('初始化完成，开始点云渲染循环');
       this.animatePointCloud();
@@ -694,11 +695,6 @@ class CameraManager {
     }
   }
   
-  // 更新媒体流
-  updateMediaStream() {
-    // 如果需要更新WebRTC媒体流，可以在这里实现
-    console.log('更新媒体流以使用新的Canvas');
-  }
   
   // 清理点云资源
   cleanupPointCloud() {
@@ -752,10 +748,13 @@ class CameraManager {
       this.pointCloud = null;
     }
     
-    // 从DOM中移除点云Canvas
-    if (this.pointCloudCanvas && this.pointCloudCanvas.parentNode) {
-      this.pointCloudCanvas.parentNode.removeChild(this.pointCloudCanvas);
-      this.pointCloudCanvas = null;
+    // 不再从DOM中移除点云Canvas，因为它是分层结构的一部分
+    // 只是重置其上下文
+    if (this.pointCloudCanvas) {
+      const ctx = this.pointCloudCanvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, this.pointCloudCanvas.width, this.pointCloudCanvas.height);
+      }
     }
   }
   
