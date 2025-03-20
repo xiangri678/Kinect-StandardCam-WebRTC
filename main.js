@@ -37,7 +37,8 @@ io.on('connection', (socket) => {
     const room = io.sockets.adapter.rooms.get(roomId);
     const participants = room ? Array.from(room).map(socketId => {
       const socket = io.sockets.sockets.get(socketId);
-      return socket.userId || socketId;
+      // return socket.userId || socketId;
+      return socket.userId;
     }) : [];
     
     // 通知房间内其他人有新用户加入

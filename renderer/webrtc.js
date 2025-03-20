@@ -109,11 +109,31 @@ class WebRTCManager {
       
       // 如果服务器返回了当前房间用户列表，通知UI更新
       if (data.participants && Array.isArray(data.participants)) {
-        this.log(`房间内现有用户: ${data.participants.join(', ')}`);
+        // 记录原始的participants列表，用于调试
+        this.log(`服务器返回的原始用户列表: ${data.participants.join(', ')}`);
+        
+        // 获取当前socket的ID
+        const currentSocketId = this.socket.id;
+        this.log(`当前Socket ID: ${currentSocketId}`);
+        
+        // 过滤掉Socket ID，只保留有效的用户ID
+        const filteredParticipants = data.participants.filter(participant => {
+          // 如果参与者ID看起来像Socket ID（包含特定格式），或者等于当前Socket ID，则过滤掉
+          const isSocketId = participant.includes('AAAA') || participant.includes('AAAB') || 
+                             participant === currentSocketId || participant === this.userId;
+          
+          if (isSocketId) {
+            this.log(`过滤掉Socket ID: ${participant}`);
+            return false;
+          }
+          return true;
+        });
+        
+        this.log(`过滤后的有效用户列表: ${filteredParticipants.join(', ')}`);
         
         // 调用参与者列表回调
         if (this.onParticipantsListCallback) {
-          this.onParticipantsListCallback(data.participants);
+          this.onParticipantsListCallback(filteredParticipants);
         }
       }
     });

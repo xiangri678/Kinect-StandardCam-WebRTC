@@ -375,28 +375,24 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 全局函数：通知远程用户模式已切换
   window.notifyRemoteModeChange = function (mode) {
-    if (webrtcManager && webrtcManager.isConnected) {
-      addLog("系统", `通知远程用户切换到${mode}模式`);
-      webrtcManager.sendViewModeChange(mode);
+    if (webRTC && webRTC.isConnected) {
+      webRTC.sendViewModeChange(mode);
     }
   };
 
   // 全局函数：处理远程模式变更
   window.handleRemoteViewModeChange = function (mode) {
-    addLog("系统", `远程用户请求切换到${mode}模式`);
     console.log(`[App] 远程用户请求切换到${mode}模式`);
 
     // 检查摄像头管理器是否可用
     if (!cameraManager) {
       console.error("[App] 摄像头管理器不可用，无法切换模式");
-      addLog("错误", "摄像头管理器不可用，无法切换模式");
       return;
     }
 
     // 检查模式是否有效
     if (mode !== "color" && mode !== "pointCloud") {
       console.error(`[App] 无效的视图模式: ${mode}`);
-      addLog("错误", `无效的视图模式: ${mode}`);
       return;
     }
 
@@ -413,45 +409,35 @@ document.addEventListener("DOMContentLoaded", async () => {
       cameraManager.setViewMode(mode);
 
       console.log(`[App] 模式已成功切换到: ${mode}`);
-      addLog(
-        "系统",
-        `模式已切换到: ${mode === "color" ? "彩色视频" : "彩色点云"}`
-      );
     } catch (error) {
       console.error(`[App] 切换视图模式失败:`, error);
-      addLog("错误", `切换视图模式失败: ${error.message}`);
     }
   };
 
   // 连接Kinect和WebRTC模块
   function setupPointCloudDataTransfer(enablePointCloudMode = false) {
-    if (!webrtcManager || !cameraManager) {
+    if (!webRTC || !cameraManager) {
       console.error("[App] WebRTC或摄像头管理器未初始化，无法设置点云数据传输");
       return;
     }
 
     console.log("[App] 开始设置点云数据传输...");
-    addLog("系统", "设置点云数据传输...");
 
     // 根据参数决定是否启用点云模式
     if (enablePointCloudMode) {
       console.log("[App] 启用WebRTC点云模式");
-      webrtcManager.setPointCloudMode(true);
+      webRTC.setPointCloudMode(true);
     }
 
     // 记录重要对象
     window._debugCameraManager = cameraManager;
-    window._debugWebRTCManager = webrtcManager;
+    window._debugwebRTC = webRTC;
 
     // 设置WebRTC的点云数据回调
     console.log("[App] 设置WebRTC点云数据回调函数");
-    webrtcManager.setPointCloudDataCallback((positions, colors) => {
+    webRTC.setPointCloudDataCallback((positions, colors) => {
       console.log(
         `[App] 收到点云数据回调: 位置数组(${positions.length}), 颜色数组(${colors.length})`
-      );
-      addLog(
-        "点云",
-        `接收到远程点云数据: 位置数组(${positions.length}), 颜色数组(${colors.length})`
       );
 
       // 记录时间戳
@@ -517,36 +503,24 @@ document.addEventListener("DOMContentLoaded", async () => {
                 window._pointCloudProcessTimes.length
               }帧)`
             );
-            addLog(
-              "点云",
-              `处理性能: 平均处理时间 ${avgTime.toFixed(2)}ms (${
-                window._pointCloudProcessTimes.length
-              }帧)`
-            );
           }
         } else {
           console.error(
             `[App] 接收到无效的点云数据: positions=${positions.length}, colors=${colors.length}`
           );
-          addLog(
-            "错误",
-            `接收到无效的点云数据: positions=${positions.length}, colors=${colors.length}`
-          );
         }
       } catch (error) {
         console.error("[App] 处理接收到的点云数据失败:", error);
-        addLog("错误", `处理接收到的点云数据失败: ${error.message}`);
       }
     });
 
     // 如果当前是点云模式，确保启用数据通道
     if (cameraManager.viewMode === "pointCloud") {
       console.log("[App] 当前已处于点云模式，确保启用数据通道");
-      webrtcManager.setPointCloudMode(true);
-      if (webrtcManager.isConnected) {
+      webRTC.setPointCloudMode(true);
+      if (webRTC.isConnected) {
         console.log("[App] WebRTC已连接，创建数据通道");
-        webrtcManager.createDataChannel();
-        addLog("系统", "已为现有连接创建点云数据通道");
+        webRTC.createDataChannel();
       }
     }
 
@@ -563,9 +537,9 @@ document.addEventListener("DOMContentLoaded", async () => {
           lastReceiveTime: cameraManager.lastReceivedDataTime || 0,
         },
         webrtc: {
-          connected: webrtcManager.isConnected,
-          dataChannelActive: !!webrtcManager.dataChannel,
-          pointCloudMode: webrtcManager.pointCloudMode,
+          connected: webRTC.isConnected,
+          dataChannelActive: !!webRTC.dataChannel,
+          pointCloudMode: webRTC.pointCloudMode,
         },
         lastSampleData: window._pointCloudSampleData || null,
         lastReceiveTime: window._lastPointCloudReceiveTime || 0,
@@ -611,7 +585,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
 
     console.log("[App] 点云数据传输已配置完成");
-    addLog("系统", "点云数据传输已配置");
   }
 
   // 初始化会议
