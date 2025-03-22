@@ -5,14 +5,13 @@ console.log('加载 Kinect 摄像头模块...');
 // 尝试导入 kinect-azure 库，如果不可用则捕获错误
 let KinectAzure = null;
 let kinectAvailable = false;
+// 检查平台 - Kinect仅在Windows上可用
+let isWindows = typeof window !== 'undefined' && 
+                  window.navigator && 
+                  window.navigator.platform && 
+  (window.navigator.platform.indexOf('Win') >= 0);
 
-try {
-  // 检查平台 - Kinect仅在Windows上可用
-  const isWindows = typeof window !== 'undefined' && 
-                   window.navigator && 
-                   window.navigator.platform && 
-                   (window.navigator.platform.indexOf('Win') >= 0);
-  
+try { 
   if (isWindows) {
     KinectAzure = require('kinect-azure');
     kinectAvailable = true;
@@ -508,7 +507,7 @@ class KinectCameraManager {
       
       // 深度图尺寸
       const DEPTH_WIDTH = 640;
-      const DEPTH_HEIGHT = 480;
+      const DEPTH_HEIGHT = 360;
       const numPoints = DEPTH_WIDTH * DEPTH_HEIGHT;
       
       // 创建几何体 - 使用BufferGeometry

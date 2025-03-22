@@ -1130,7 +1130,7 @@ class WebRTCManager {
       // 如果仍然连接中，继续渲染循环
       // if (this.isConnected) {
         this.remoteCanvasAnimationId = requestAnimationFrame(renderFrame);
-        console.log('[WebRTC] 远程Canvas渲染循环已启动');
+        // console.log('[WebRTC] 远程Canvas渲染循环已启动');
       // }
     };
     
