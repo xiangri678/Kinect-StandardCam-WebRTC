@@ -103,6 +103,7 @@ class KinectCameraManager {
     const viewModeSelect = document.getElementById('viewModeSelect');
     if (viewModeSelect) {
       viewModeSelect.addEventListener('change', (event) => {
+        console.log('KinectCameraManager: 视图模式选择器已更改，即将调用 setViewMode');
         this.setViewMode(event.target.value);
       });
     }
@@ -221,11 +222,9 @@ class KinectCameraManager {
     // 记住旧的回调函数，用于后续重新应用
     const previousCallback = this.onFrameCallback;
     
-    // 检测是否为Mac系统
-    const isMac = navigator.platform.indexOf('Mac') !== -1;
-    console.log(`当前系统: ${isMac ? 'Mac OS' : '非Mac系统'}`);
-    if (isMac) {
+    if (!isWindows) {
       this.colorCanvas = this.remoteCanvas;
+      this.colorCtx = this.remoteCanvas.getContext('2d');
     }
     
     // 更新视图模式
@@ -509,7 +508,7 @@ class KinectCameraManager {
       
       // 深度图尺寸
       const DEPTH_WIDTH = 640;
-      const DEPTH_HEIGHT = 576;
+      const DEPTH_HEIGHT = 480;
       const numPoints = DEPTH_WIDTH * DEPTH_HEIGHT;
       
       // 创建几何体 - 使用BufferGeometry
@@ -883,16 +882,6 @@ class KinectCameraManager {
         if (this.onFrameCallback && this.pointCloudCanvas) {
           this.onFrameCallback(this.pointCloudCanvas);
         }
-        
-        // MAC端特殊处理：强制将点云内容复制到原Canvas
-        if (navigator.platform.indexOf('Mac') !== -1 && this.colorCtx && this.pointCloudCanvas) {
-          try {
-            this.colorCtx.clearRect(0, 0, this.colorCanvas.width, this.colorCanvas.height);
-            this.colorCtx.drawImage(this.pointCloudCanvas, 0, 0, this.colorCanvas.width, this.colorCanvas.height);
-          } catch (e) {
-            console.warn('Mac模式下复制Canvas失败:', e);
-          }
-        }
       } catch (error) {
         console.error('渲染点云时出错:', error);
         // 出错时继续尝试动画而不是立即停止
@@ -1031,7 +1020,7 @@ class KinectCameraManager {
         window.webrtcManager.sendPointCloudData(downPositions, downColors);
       } else if (isConnected && !hasDataChannel) {
         console.log('[Kinect] 尝试创建数据通道');
-        window.webrtcManager.createDataChannel();
+        // window.webrtcManager.createDataChannel();
       }
     }
   }
@@ -1041,7 +1030,7 @@ class KinectCameraManager {
     if (!this.colorCtx) return;
     
     const width = this.colorCanvas.width || 640;
-    const height = this.colorCanvas.height || 480;
+    const height = this.colorCanvas.height || 360;
     
     // 绘制渐变背景
     const gradient = this.colorCtx.createLinearGradient(0, 0, width, height);

@@ -224,23 +224,30 @@ class CameraManager {
   
   // 开始帧循环
   startFrameLoop() {
-    console.log('开始帧循环');
+    console.log('开始本地彩色视频流帧循环');
     
     const processFrame = () => {
+      // console.log('[Camera] 处理视频帧开始');
+      
       // 检查视频是否已准备好以及Canvas是否存在
       if (this.videoElement && this.videoElement.readyState === 4 && this.colorCanvas && this.colorCtx) {
+        // console.log(`[Camera] 视频元素就绪状态: ${this.videoElement.readyState}, 尺寸: ${this.videoElement.videoWidth}x${this.videoElement.videoHeight}`);
+        
         // 调整Canvas尺寸以匹配视频
         if (this.colorCanvas.width !== this.videoElement.videoWidth || 
             this.colorCanvas.height !== this.videoElement.videoHeight) {
+          // console.log(`[Camera] 调整Canvas尺寸: ${this.colorCanvas.width}x${this.colorCanvas.height} -> ${this.videoElement.videoWidth}x${this.videoElement.videoHeight}`);
           this.colorCanvas.width = this.videoElement.videoWidth;
           this.colorCanvas.height = this.videoElement.videoHeight;
         }
         
         // 将视频帧绘制到Canvas
+        // console.log('[Camera] 将视频帧绘制到Canvas');
         this.colorCtx.drawImage(this.videoElement, 0, 0);
         
         // 调用帧回调
         if (this.onFrameCallback) {
+          // console.log('[Camera] 调用帧回调函数');
           const frameData = {
             colorCanvas: this.colorCanvas,
             timestamp: Date.now(),
@@ -248,23 +255,35 @@ class CameraManager {
             height: this.colorCanvas.height
           };
           
+          // console.log(`[Camera] 帧数据: 时间戳=${frameData.timestamp}, 尺寸=${frameData.width}x${frameData.height}`);
           this.onFrameCallback(frameData);
+        } else {
+          console.log('[Camera] 没有设置帧回调函数');
         }
       } else {
+        console.warn('[Camera] 视频帧处理条件不满足');
         if (!this.colorCanvas) {
-          console.warn('Canvas元素未找到，帧处理暂停');
+          console.warn('[Camera] Canvas元素未找到，帧处理暂停');
         } else if (!this.videoElement) {
-          console.warn('视频元素未找到，帧处理暂停');
+          console.warn('[Camera] 视频元素未找到，帧处理暂停');
+        } else if (this.videoElement.readyState !== 4) {
+          console.warn(`[Camera] 视频元素未就绪，当前状态: ${this.videoElement.readyState}`);
+        } else if (!this.colorCtx) {
+          console.warn('[Camera] Canvas上下文未找到，帧处理暂停');
         }
       }
       
       // 继续下一帧
       if (this.isRunning) {
+        // console.log('[Camera] 请求下一帧动画');
         this.animationFrameId = requestAnimationFrame(processFrame);
+      } else {
+        console.log('[Camera] 摄像头已停止运行，不再请求下一帧');
       }
     };
     
     // 启动帧循环
+    console.log('[Camera] 启动视频帧循环');
     this.animationFrameId = requestAnimationFrame(processFrame);
   }
   
@@ -279,7 +298,7 @@ class CameraManager {
     
     // 设置画布大小
     this.colorCanvas.width = 640;
-    this.colorCanvas.height = 480;
+    this.colorCanvas.height = 360;
     
     // 绘制渐变背景
     const gradient = this.colorCtx.createLinearGradient(0, 0, this.colorCanvas.width, this.colorCanvas.height);
@@ -435,7 +454,7 @@ class CameraManager {
     ctx.stroke();
   }
   
-  // 设置视图模式
+  // 设置 mac 视图模式
   setViewMode(mode) {
     if (mode !== 'color' && mode !== 'pointCloud') {
       console.error('无效的视图模式:', mode);
@@ -488,22 +507,28 @@ class CameraManager {
     if (mode === 'pointCloud') {
       // 设置点云
       try {
-        console.log('[Camera] 开始设置点云环境');
+        console.log("[Camera] 开始设置点云环境");
         this.setupPointCloud();
-        
+
         // 如果有彩色Canvas，隐藏它
         if (this.colorCanvas) {
-          console.log('[Camera] 隐藏彩色Canvas');
-          this.colorCanvas.style.display = 'none';
+          console.log("[Camera] 隐藏彩色Canvas");
+          this.colorCanvas.style.display = "none";
         }
-        
-        // 显示点云Canvas
-        if (this.pointCloudCanvas) {
-          console.log('[Camera] 显示点云Canvas');
-          this.pointCloudCanvas.style.display = 'block';
+
+        // 如果之前有回调，确保点云Canvas也应用相同的回调
+        if (previousCallback && this.pointCloudCanvas) {
+          console.log("将回调函数应用到点云Canvas");
+          this.onFrameCallback = previousCallback;
         }
-        
-        console.log('[Camera] 点云环境设置完成');
+
+        // // 显示点云Canvas
+        // if (this.pointCloudCanvas) {
+        //   console.log("[Camera] 显示点云Canvas");
+        //   this.pointCloudCanvas.style.display = "block";
+        // }
+
+        console.log("[Camera] 点云环境设置完成");
       } catch (error) {
         console.error('[Camera] 设置点云失败:', error);
         this.viewMode = 'color';
@@ -519,10 +544,10 @@ class CameraManager {
       // 切换回彩色模式
       console.log('[Camera] 切换回彩色模式');
       // 隐藏点云Canvas
-      if (this.pointCloudCanvas) {
-        console.log('[Camera] 隐藏点云Canvas');
-        this.pointCloudCanvas.style.display = 'none';
-      }
+      // if (this.pointCloudCanvas) {
+      //   console.log('[Camera] 隐藏点云Canvas');
+      //   this.pointCloudCanvas.style.display = 'none';
+      // }
       
       // 显示彩色Canvas
       if (this.colorCanvas) {
@@ -635,7 +660,7 @@ class CameraManager {
       
       // 深度图尺寸
       const DEPTH_WIDTH = 640;
-      const DEPTH_HEIGHT = 576;
+      const DEPTH_HEIGHT = 480;
       let numPoints = DEPTH_WIDTH * DEPTH_HEIGHT;
       console.log(`准备创建点云，点数: ${numPoints}`);
 
@@ -678,10 +703,7 @@ class CameraManager {
       this.pointCloud = new THREE.Points(geometry, material);
       this.threeJsScene.add(this.pointCloud);
       console.log('点云已添加到场景');
-      
-      // 更新WebRTC的媒体流以使用新的Canvas
-      this.updateMediaStream();
-      
+            
       // 开始渲染循环
       console.log('初始化完成，开始点云渲染循环');
       this.animatePointCloud();
@@ -692,12 +714,6 @@ class CameraManager {
       this.cleanupPointCloud(); // 清理已创建的资源
       throw error;
     }
-  }
-  
-  // 更新媒体流
-  updateMediaStream() {
-    // 如果需要更新WebRTC媒体流，可以在这里实现
-    console.log('更新媒体流以使用新的Canvas');
   }
   
   // 清理点云资源

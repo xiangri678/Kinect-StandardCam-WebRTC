@@ -257,10 +257,25 @@ class WebRTCManager {
       this.log('收到远程媒体流');
       this.remoteStream = stream;
       
-      // 播放远程视频
+      // 使用canvas渲染远程视频，而不是直接设置srcObject
       const remoteVideo = document.getElementById('remoteVideo');
       if (remoteVideo) {
-        remoteVideo.srcObject = stream;
+        // 创建远程视频渲染上下文
+        this.remoteCanvas = remoteVideo;
+        this.remoteCtx = remoteVideo.getContext('2d');
+        
+        // 设置canvas尺寸
+        this.remoteCanvas.width = 640;
+        this.remoteCanvas.height = 360;
+        
+        // 创建临时video元素用于接收媒体流
+        this.tempRemoteVideo = document.createElement('video');
+        this.tempRemoteVideo.autoplay = true;
+        this.tempRemoteVideo.playsinline = true;
+        this.tempRemoteVideo.srcObject = stream;
+        
+        // 开始渲染循环
+        this.startRemoteCanvasRendering();
       }
       
       if (this.onRemoteStreamCallback) {
@@ -598,6 +613,23 @@ class WebRTCManager {
   
   close() {
     this.log('关闭WebRTC连接...');
+    
+    // 停止远程Canvas渲染
+    this.stopRemoteCanvasRendering();
+    
+    // 清理远程视频相关资源
+    this.remoteCanvas = null;
+    this.remoteCtx = null;
+    if (this.tempRemoteVideo) {
+      this.tempRemoteVideo.srcObject = null;
+      this.tempRemoteVideo = null;
+    }
+    
+    // 清理远程Three.js渲染器
+    if (this.remoteThreeJsRenderer) {
+      this.remoteThreeJsRenderer.dispose();
+      this.remoteThreeJsRenderer = null;
+    }
     
     // 清理数据通道
     this.dataChannel = null;
@@ -1072,6 +1104,46 @@ class WebRTCManager {
       this.dataChannel = null;
     }
     this.init();
+  }
+  
+  // 开始远程canvas渲染循环
+  startRemoteCanvasRendering() {
+    if (!this.remoteCanvas || !this.remoteCtx || !this.tempRemoteVideo) {
+      this.error('无法启动远程Canvas渲染：缺少必要组件');
+      return;
+    }
+    
+    this.log('开始远程Canvas渲染循环');
+    
+    // 渲染循环函数
+    const renderFrame = () => {
+      // 只有当远程视频准备好时才渲染
+      if (this.tempRemoteVideo.readyState >= 2) {
+        this.remoteCtx.drawImage(
+          this.tempRemoteVideo,
+          0, 0,
+          this.remoteCanvas.width,
+          this.remoteCanvas.height
+        );
+      }
+      
+      // 如果仍然连接中，继续渲染循环
+      // if (this.isConnected) {
+        this.remoteCanvasAnimationId = requestAnimationFrame(renderFrame);
+        console.log('[WebRTC] 远程Canvas渲染循环已启动');
+      // }
+    };
+    
+    // 开始渲染循环
+    this.remoteCanvasAnimationId = requestAnimationFrame(renderFrame);
+  }
+  
+  // 停止远程canvas渲染
+  stopRemoteCanvasRendering() {
+    if (this.remoteCanvasAnimationId) {
+      cancelAnimationFrame(this.remoteCanvasAnimationId);
+      this.remoteCanvasAnimationId = null;
+    }
   }
 }
 
