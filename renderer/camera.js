@@ -305,7 +305,7 @@ class CameraManager {
     
     // 设置画布大小
     this.localCanvas.width = 640;
-    this.localCanvas.height = 360;
+    this.localCanvas.height = 480;
     
     // 绘制渐变背景
     const gradient = this.localCtx.createLinearGradient(0, 0, this.localCanvas.width, this.localCanvas.height);
@@ -609,7 +609,7 @@ class CameraManager {
       // 创建新的Canvas元素用于点云
       this.pointCloudCanvas = document.createElement('canvas');
       this.pointCloudCanvas.width = 640;
-      this.pointCloudCanvas.height = 360;
+      this.pointCloudCanvas.height = 480;
       this.pointCloudCanvas.style.display = 'block';
       this.pointCloudCanvas.id = 'pointCloudCanvas'; // 添加ID便于调试
       
@@ -642,7 +642,8 @@ class CameraManager {
         preserveDrawingBuffer: true // 确保可以从Canvas中读取数据
       });
       this.threeJsRenderer.setSize(width, height);
-      this.threeJsRenderer.setClearColor(0x000000, 0);
+      this.threeJsRenderer.setClearColor(0x222222, 1); // 改为暗灰色背景
+      // this.threeJsRenderer.setClearColor(0x000000, 0); // 原版黑色背景
       console.log('THREE.js渲染器已创建');
       
       // 添加轨道控制器
@@ -667,11 +668,11 @@ class CameraManager {
       
       // 深度图尺寸
       const DEPTH_WIDTH = 640;
-      const DEPTH_HEIGHT = 360;
+      const DEPTH_HEIGHT = 576;
       let numPoints = DEPTH_WIDTH * DEPTH_HEIGHT;
       console.log(`准备创建点云，点数: ${numPoints}`);
       // TODO: 计算降采样后应该有多少点
-      const sampleRate = 4;
+      const sampleRate = 36;
       numPoints = Math.floor(numPoints / sampleRate);
       
       // 创建几何体 - 使用BufferGeometry
@@ -689,9 +690,9 @@ class CameraManager {
         positions[i * 3] = x;
         positions[i * 3 + 1] = y;
         positions[i * 3 + 2] = 0;
-        
-        colors[i * 3] = 0;
-        colors[i * 3 + 1] = 0;
+        // RGB(255,255,0)，黄色
+        colors[i * 3] = 255;
+        colors[i * 3 + 1] = 255;
         colors[i * 3 + 2] = 0;
       }
       
@@ -711,6 +712,16 @@ class CameraManager {
       this.threeJsScene.add(this.pointCloud);
       console.log('点云已添加到场景');
             
+      // 添加一个红色网格作为参考
+      const gridHelper = new THREE.GridHelper(1000, 10, 0xff0000, 0xffffff);
+      this.threeJsScene.add(gridHelper);
+      
+      // 添加三个坐标轴
+      const axesHelper = new THREE.AxesHelper(500);
+      this.threeJsScene.add(axesHelper);
+      
+      console.log('添加了参考网格和坐标轴');
+      
       // 开始渲染循环
       console.log('初始化完成，开始点云渲染循环');
       this.animatePointCloud();
@@ -847,14 +858,14 @@ class CameraManager {
       }
       
       // 如果帧时间太短，延迟执行以控制帧率
-      if (frameDelta < minFrameTime) {
-        console.log(`[Camera] 帧间隔过短: ${frameDelta}ms < ${minFrameTime}ms, 延迟执行`);
-        this.animationFrameId = setTimeout(() => {
-          console.log('[Camera] 延迟帧执行中...');
-          this.animationFrameId = requestAnimationFrame(animate);
-        }, minFrameTime - frameDelta);
-        return;
-      }
+      // if (frameDelta < minFrameTime) {
+      //   console.log(`[Camera] 帧间隔过短: ${frameDelta}ms < ${minFrameTime}ms, 延迟执行`);
+      //   this.animationFrameId = setTimeout(() => {
+      //     console.log('[Camera] 延迟帧执行中...');
+      //     this.animationFrameId = requestAnimationFrame(animate);
+      //   }, minFrameTime - frameDelta);
+      //   return;
+      // }
       
       // 继续执行动画帧
       this.animationFrameId = requestAnimationFrame(animate);
@@ -907,13 +918,13 @@ class CameraManager {
         }
         
         // 渲染场景
-        if (this.frameCount % 10 === 0) {
-          console.log(`[Camera] 渲染点云帧 ${this.frameCount} - 开始渲染`);
-        }
+        // if (this.frameCount % 10 === 0) {
+          // console.log(`[Camera] 渲染点云帧 ${this.frameCount} - 开始渲染`);
+        // }
         this.threeJsRenderer.render(this.threeJsScene, this.threeJsCamera);
-        if (this.frameCount % 10 === 0) {
-          console.log(`[Camera] 渲染点云帧 ${this.frameCount} - 渲染完成`);
-        }
+        // if (this.frameCount % 10 === 0) {
+          // console.log(`[Camera] 渲染点云帧 ${this.frameCount} - 渲染完成`);
+        // }
       } catch (error) {
         console.error(`[Camera] 点云渲染错误 [帧 ${this.frameCount}]:`, error);
       }

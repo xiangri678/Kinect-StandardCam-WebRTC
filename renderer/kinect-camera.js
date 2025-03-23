@@ -10,6 +10,7 @@ let isWindows = typeof window !== 'undefined' &&
                   window.navigator && 
                   window.navigator.platform && 
   (window.navigator.platform.indexOf('Win') >= 0);
+var lastTransferPointCloudDataTime = 0;
 
 try { 
   if (isWindows) {
@@ -451,109 +452,132 @@ class KinectCameraManager {
     try {
       // 清理任何已存在的点云Canvas
       this.cleanupPointCloud();
-      
+
       // 创建新的Canvas元素用于点云
-      this.pointCloudCanvas = document.createElement('canvas');
+      this.pointCloudCanvas = document.createElement("canvas");
       this.pointCloudCanvas.width = 640;
       this.pointCloudCanvas.height = 480;
-      this.pointCloudCanvas.style.display = 'block';
-      this.pointCloudCanvas.id = 'pointCloudCanvas'; // 添加ID便于调试
-      
+      this.pointCloudCanvas.style.display = "block";
+      this.pointCloudCanvas.id = "pointCloudCanvas"; // 添加ID便于调试
+
       // 将点云Canvas添加到DOM中，替换彩色Canvas的位置
       if (this.colorCanvas && this.colorCanvas.parentNode) {
-        this.colorCanvas.parentNode.insertBefore(this.pointCloudCanvas, this.colorCanvas.nextSibling);
+        this.colorCanvas.parentNode.insertBefore(
+          this.pointCloudCanvas,
+          this.colorCanvas.nextSibling
+        );
       } else {
         document.body.appendChild(this.pointCloudCanvas);
       }
-      
+
       // 创建Three.js场景
       this.threeJsScene = new THREE.Scene();
-      
+
       // 摄像机
       const width = this.pointCloudCanvas.width;
       const height = this.pointCloudCanvas.height;
-      this.threeJsCamera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
+      this.threeJsCamera = new THREE.PerspectiveCamera(
+        30,
+        width / height,
+        1,
+        10000
+      );
       this.threeJsCamera.position.set(0, 0, 2000);
       this.threeJsCamera.lookAt(0, 0, 0);
-      
+
       // 渲染器 - 使用新创建的Canvas
       this.threeJsRenderer = new THREE.WebGLRenderer({
         canvas: this.pointCloudCanvas,
         antialias: true,
         alpha: true,
-        preserveDrawingBuffer: true // 确保可以从Canvas中读取数据
+        preserveDrawingBuffer: true, // 确保可以从Canvas中读取数据
       });
       this.threeJsRenderer.setSize(width, height);
       this.threeJsRenderer.setClearColor(0x000000, 0);
-      
+      this.threeJsRenderer.setPixelRatio(window.devicePixelRatio);
+
       // 添加轨道控制器
       try {
         // 尝试不同的可能位置来获取OrbitControls
-        const OrbitControls = 
-          (window.THREE && window.THREE.OrbitControls) || 
-          (THREE.OrbitControls) || 
-          (window.OrbitControls);
-        
+        const OrbitControls =
+          (window.THREE && window.THREE.OrbitControls) ||
+          THREE.OrbitControls ||
+          window.OrbitControls;
+
         if (OrbitControls) {
-          this.threeJsControls = new OrbitControls(this.threeJsCamera, this.pointCloudCanvas);
+          this.threeJsControls = new OrbitControls(
+            this.threeJsCamera,
+            this.pointCloudCanvas
+          );
           this.threeJsControls.enableDamping = true;
           this.threeJsControls.dampingFactor = 0.25;
         } else {
-          console.warn('未找到OrbitControls，3D视图将不可旋转');
+          console.warn("未找到OrbitControls，3D视图将不可旋转");
         }
       } catch (error) {
-        console.warn('初始化OrbitControls失败:', error);
+        console.warn("初始化OrbitControls失败:", error);
       }
-      
+
       // 深度图尺寸
       const DEPTH_WIDTH = 640;
-      const DEPTH_HEIGHT = 360;
+      const DEPTH_HEIGHT = 576;
       const numPoints = DEPTH_WIDTH * DEPTH_HEIGHT;
-      
+
       // 创建几何体 - 使用BufferGeometry
       const geometry = new THREE.BufferGeometry();
-      
+
       // 创建位置和颜色缓冲区
       const positions = new Float32Array(numPoints * 3);
       const colors = new Float32Array(numPoints * 3);
-      
+
       // 初始化点位置
       for (let i = 0; i < numPoints; i++) {
         const x = (i % DEPTH_WIDTH) - DEPTH_WIDTH * 0.5;
         const y = DEPTH_HEIGHT / 2 - Math.floor(i / DEPTH_WIDTH);
-        
+
         positions[i * 3] = x;
         positions[i * 3 + 1] = y;
         positions[i * 3 + 2] = 0;
-        
+
         colors[i * 3] = 0;
         colors[i * 3 + 1] = 0;
         colors[i * 3 + 2] = 0;
       }
-      
+
       // 设置属性
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-      
+      geometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(positions, 3)
+      );
+      geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
       // 创建材质
       const material = new THREE.PointsMaterial({
         size: 2,
-        vertexColors: true
+        vertexColors: THREE.VertexColors,
       });
-      
+
       // 创建点云
       this.pointCloud = new THREE.Points(geometry, material);
       this.threeJsScene.add(this.pointCloud);
-      
+
+      // 添加一个红色网格作为参考
+      const gridHelper = new THREE.GridHelper(1000, 10, 0xff0000, 0xffffff);
+      this.threeJsScene.add(gridHelper);
+
+      // 添加三个坐标轴
+      const axesHelper = new THREE.AxesHelper(500);
+      this.threeJsScene.add(axesHelper);
+
+      console.log("添加了参考网格和坐标轴");
+
       // 更新WebRTC的媒体流以使用新的Canvas
       this.updateMediaStream();
-      
+
       // 开始渲染循环
       this.animatePointCloud();
-      
-      console.log('✔😈王冠达：点云初始化完成');
 
-      
+      console.log("✔😈王冠达：点云初始化完成");
     } catch (error) {
       console.error('创建点云时出错:', error);
       this.cleanupPointCloud(); // 清理已创建的资源
@@ -790,6 +814,7 @@ class KinectCameraManager {
     
     // 定义动画函数
     const animate = () => {
+      // console.log('正在animate');
       // 安全检查 - 如果退出点云模式，则停止动画循环
       if (this.viewMode !== 'pointCloud') {
         console.log('退出点云模式，停止动画循环');
@@ -926,43 +951,54 @@ class KinectCameraManager {
   // 更新点云数据
   updatePointCloud(depthData, colorData) {
     if (!this.pointCloud || !this.depthModeRange) {
-      console.warn('无法更新点云：点云对象或深度模式范围未设置');
+      console.warn("无法更新点云：点云对象或深度模式范围未设置");
       return;
     }
 
     const positions = this.pointCloud.geometry.attributes.position.array;
     const colors = this.pointCloud.geometry.attributes.color.array;
+    const DEPTH_WIDTH = 640;
+    const DEPTH_HEIGHT = 576;
 
     // 读取深度和颜色数据
-     for (let i = 0, j = 0; i < depthData.length; i += 2, j += 3) {
-       const depthValue = depthData[i + 1] << 8 | depthData[i];
- 
-       const colorIndex = j / 3 * 4;
-       const b = colorData[colorIndex + 0] / 255;
-       const g = colorData[colorIndex + 1] / 255;
-       const r = colorData[colorIndex + 2] / 255;
- 
-       if (depthValue > this.depthModeRange.min && depthValue < this.depthModeRange.max) {
-         positions[j + 2] = depthValue;
- 
-         colors[j] = r;
-         colors[j + 1] = g;
-         colors[j + 2] = b;
-       } else {
-         positions[j + 2] = Number.MAX_VALUE;
- 
-         colors[j] = 0;
-         colors[j + 1] = 0;
-         colors[j + 2] = 0;
-       }
-     }
-    
-    this.pointCloud.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    this.pointCloud.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    for (let i = 0, j = 0; i < depthData.length; i += 2, j += 3) {
+      const depthValue = (depthData[i + 1] << 8) | depthData[i];
+
+      const colorIndex = (j / 3) * 4;
+      const b = colorData[colorIndex + 0] / 255;
+      const g = colorData[colorIndex + 1] / 255;
+      const r = colorData[colorIndex + 2] / 255;
+
+      if (
+        depthValue > this.depthModeRange.min &&
+        depthValue < this.depthModeRange.max
+      ) {
+        positions[j + 2] = depthValue;
+
+        colors[j] = r;
+        colors[j + 1] = g;
+        colors[j + 2] = b;
+      } else {
+        positions[j + 2] = Number.MAX_VALUE;
+
+        colors[j] = 0;
+        colors[j + 1] = 0;
+        colors[j + 2] = 0;
+      }
+    }
+
+    this.pointCloud.geometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(positions, 3)
+    );
+    this.pointCloud.geometry.setAttribute(
+      "color",
+      new THREE.BufferAttribute(colors, 3)
+    );
     this.pointCloud.geometry.attributes.position.needsUpdate = true;
     this.pointCloud.geometry.attributes.color.needsUpdate = true;
 
-    console.log('position 和 color 原始数据：', positions, colors, Date.now());
+    // console.log('position 和 color 原始数据：', positions, colors, Date.now());
 
      // 请求渲染一帧
      if (this.threeJsRenderer && this.threeJsScene && this.threeJsCamera) {
@@ -970,55 +1006,104 @@ class KinectCameraManager {
        console.log('[Kinect] 本地渲染了一帧点云');
      }
 
-    this._lastUpdateTime = now;
-    // 激进的节流：每1000ms最多更新一次
-    if (this._lastUpdateTime && now - this._lastUpdateTime < 1000) {
+    if (
+      lastTransferPointCloudDataTime &&
+      Date.now() - lastTransferPointCloudDataTime < 1000
+    ) {
+      console.log("[Kinect] 激进的节流：每1000ms最多更新一次，跳过发送本帧");
       return;
     }
+    lastTransferPointCloudDataTime = Date.now(); // 激进的降采样：只保留部分点
 
-    // 激进的降采样：只保留50%的点
-    const sampleRate = 2; // 改这里就可以调节点云密度，降采样率
-    const downPositions = new Float32Array(Math.floor(this.pointCloud.geometry.attributes.position.array.length / sampleRate));
-    const downColors = new Float32Array(Math.floor(this.pointCloud.geometry.attributes.color.array.length / sampleRate));
-    
-    // 读取深度和颜色数据，并进行降采样
+    const sampleRate = 36; // 采样率 // 计算点的数量而不是直接用数组长度
+    const numOriginalPoints = depthData.length / 2; // 深度数据中的点数
+    const numSampledPoints = Math.floor(numOriginalPoints / sampleRate); // 采样后的点数
+    const downPositions = new Float32Array(numSampledPoints * 3); // 每个点3个坐标(x,y,z)
+    const downColors = new Float32Array(numSampledPoints * 3); // 每个点3个颜色值(r,g,b)
+
+    console.log(
+      "原始点数:",
+      numOriginalPoints,
+      "采样后点数:",
+      numSampledPoints
+    ); // 读取深度和颜色数据，并进行降采样
     for (let i = 0, j = 0; i < depthData.length; i += 2 * sampleRate, j += 3) {
-      const depthValue = depthData[i + 1] << 8 | depthData[i];
-      
+      // 计算当前深度像素索引
+      const pixelIndex = i / 2; // 计算在原始positions数组中的对应索引位置
+
+      const origPosIndex = pixelIndex * 3; // 直接使用原始点云中的X和Y坐标
+      if (
+        origPosIndex <
+        this.pointCloud.geometry.attributes.position.array.length - 2
+      ) {
+        downPositions[j] =
+          this.pointCloud.geometry.attributes.position.array[origPosIndex]; // X
+        downPositions[j + 1] =
+          this.pointCloud.geometry.attributes.position.array[origPosIndex + 1]; // Y
+      } else {
+        // 超出范围时使用计算的坐标
+        const x = (pixelIndex % DEPTH_WIDTH) - DEPTH_WIDTH * 0.5;
+        const y = DEPTH_HEIGHT / 2 - Math.floor(pixelIndex / DEPTH_WIDTH);
+        downPositions[j] = x;
+        downPositions[j + 1] = y;
+      }
+      const depthValue = (depthData[i + 1] << 8) | depthData[i];
+
       const colorIndex = (j / 3) * 4 * sampleRate;
       const b = colorData[colorIndex + 0] / 255;
       const g = colorData[colorIndex + 1] / 255;
       const r = colorData[colorIndex + 2] / 255;
-      
-      if (depthValue > this.depthModeRange.min && depthValue < this.depthModeRange.max) {
+
+      if (
+        depthValue > this.depthModeRange.min &&
+        depthValue < this.depthModeRange.max
+      ) {
         downPositions[j + 2] = depthValue;
-        
+
         downColors[j] = r;
         downColors[j + 1] = g;
         downColors[j + 2] = b;
       } else {
         downPositions[j + 2] = Number.MAX_VALUE;
-        
+
         downColors[j] = 0;
         downColors[j + 1] = 0;
         downColors[j + 2] = 0;
       }
     }
-    
-    console.log(`[Kinect] 点云数据降采样: ${depthData.length/2} -> ${downPositions.length/3} 个点`);
-    
+
+    console.log(
+      `[Kinect] 点云数据降采样: ${depthData.length / 2} -> ${
+        downPositions.length / 3
+      } 个点`
+    );
+    // this.pointCloud.geometry.setAttribute(
+    //   "position",
+    //   new THREE.BufferAttribute(downPositions, 3)
+    // );
+    // this.pointCloud.geometry.setAttribute(
+    //   "color",
+    //   new THREE.BufferAttribute(downColors, 3)
+    // );
+
+    // console.log('position 和 color 原始数据：', positions, colors, Date.now());
+
     // 如果是点云模式且WebRTC连接已建立，发送点云数据
-    if (this.viewMode === 'pointCloud' && window.webrtcManager) {
+    if (this.viewMode === "pointCloud" && window.webrtcManager) {
       const isConnected = window.webrtcManager.isConnected;
       const hasDataChannel = window.webrtcManager.dataChannel;
-      
-      console.log(`[Kinect] 点云数据准备发送，WebRTC连接状态: ${isConnected ? '已连接' : '未连接'}, 数据通道状态: ${hasDataChannel ? '已创建' : '未创建'}`);
-      
+
+      console.log(
+        `[Kinect] 点云数据准备发送，WebRTC连接状态: ${
+          isConnected ? "已连接" : "未连接"
+        }, 数据通道状态: ${hasDataChannel ? "已创建" : "未创建"}`
+      );
+
       if (isConnected && hasDataChannel) {
-        console.log('[Kinect] 通过WebRTC数据通道发送点云数据');
+        console.log("[Kinect] 通过WebRTC数据通道发送点云数据");
         window.webrtcManager.sendPointCloudData(downPositions, downColors);
       } else if (isConnected && !hasDataChannel) {
-        console.log('[Kinect] 尝试创建数据通道');
+        console.log("[Kinect] 尝试创建数据通道");
         // window.webrtcManager.createDataChannel();
       }
     }
@@ -1029,7 +1114,7 @@ class KinectCameraManager {
     if (!this.colorCtx) return;
     
     const width = this.colorCanvas.width || 640;
-    const height = this.colorCanvas.height || 360;
+    const height = this.colorCanvas.height || 480;
     
     // 绘制渐变背景
     const gradient = this.colorCtx.createLinearGradient(0, 0, width, height);

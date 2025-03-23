@@ -760,31 +760,12 @@ class WebRTCManager {
     const posArray = positions instanceof Float32Array ? positions : new Float32Array(positions);
     const colArray = colors instanceof Float32Array ? colors : new Float32Array(colors);
 
-    // 激进的降采样：只保留10%的点
-    const sampleRate = 10;
-    const sampledPositions = new Float32Array(Math.floor(posArray.length / sampleRate));
-    const sampledColors = new Float32Array(Math.floor(colArray.length / sampleRate));
-
-    for (let i = 0; i < sampledPositions.length; i += 3) {
-      sampledPositions[i] = posArray[i * sampleRate];
-      sampledPositions[i + 1] = posArray[i * sampleRate + 1];
-      sampledPositions[i + 2] = posArray[i * sampleRate + 2];
-    }
-
-    for (let i = 0; i < sampledColors.length; i += 3) {
-      sampledColors[i] = colArray[i * sampleRate];
-      sampledColors[i + 1] = colArray[i * sampleRate + 1];
-      sampledColors[i + 2] = colArray[i * sampleRate + 2];
-    }
-
-    console.log(`[WebRTC] 点云数据降采样: ${posArray.length/3} -> ${sampledPositions.length/3} 个点`);
-
     try {
       if (useBinary) {
         // 创建二进制数据
-        const combinedBuffer = new Float32Array(sampledPositions.length + sampledColors.length);
-        combinedBuffer.set(sampledPositions);
-        combinedBuffer.set(sampledColors, sampledPositions.length);
+        const combinedBuffer = new Float32Array(posArray.length + colArray.length);
+        combinedBuffer.set(posArray);
+        combinedBuffer.set(colArray, posArray.length);
 
         // 发送二进制数据
         this.peer.send(combinedBuffer.buffer);

@@ -679,7 +679,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           !isNaN(positions[0])
         ) {
           // 首先确认我们当前是否处于点云模式
-          if (cameraManager.viewMode !== "pointCloud") {
+          if (cameraManager.standardCamera.viewMode !== "pointCloud") {
             console.log(
               "[App] 收到点云数据但当前不是点云模式，自动切换到点云模式"
             );
@@ -716,23 +716,25 @@ document.addEventListener('DOMContentLoaded', async () => {
               const remoteCtx = webrtcManager.remoteCtx;
 
               // 如果Remote Canvas尚未建立Three.js渲染器，创建一个
-              if (!webrtcManager.remoteThreeJsRenderer) {
-                webrtcManager.remoteThreeJsRenderer = new THREE.WebGLRenderer({
+              if (!cameraManager.standardCamera.threeJsRenderer) {
+                cameraManager.standardCamera.threeJsRenderer = new THREE.WebGLRenderer({
                   canvas: remoteCanvas,
                   alpha: true,
                   antialias: true,
                 });
-                webrtcManager.remoteThreeJsRenderer.setSize(
+                cameraManager.standardCamera.threeJsRenderer.setSize(
                   remoteCanvas.width,
                   remoteCanvas.height
                 );
-                webrtcManager.remoteThreeJsRenderer.setClearColor(0x000000, 0);
+                cameraManager.standardCamera.threeJsRenderer.setClearColor(0x000000, 0);
 
-                console.log("[App] 为**远程Canvas**创建了Three.js渲染器，注意 Windows 不应该走到这里，check");
+                console.log(
+                  "[App] 为**远程Canvas**创建了Three.js渲染器，注意 Windows 不应该走到这里，check"
+                );
               }
 
               // 渲染点云
-              webrtcManager.remoteThreeJsRenderer.render(
+              cameraManager.standardCamera.threeJsRenderer.render(
                 cameraManager.standardCamera.threeJsScene,
                 cameraManager.standardCamera.threeJsCamera
               );
@@ -788,7 +790,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 如果当前是点云模式，确保启用数据通道
-    if (cameraManager.viewMode === "pointCloud") {
+    if (cameraManager.standardCamera.viewMode === "pointCloud") {
       console.log("[App] 当前已处于点云模式，确保启用数据通道");
       webrtcManager.setPointCloudMode(true);
       if (webrtcManager.isConnected) {
@@ -803,7 +805,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log("[App] 执行点云调试函数");
       const status = {
         cameraManager: {
-          viewMode: cameraManager.viewMode,
+          viewMode: cameraManager.standardCamera.viewMode,
           pointCloudActive: cameraManager.pointCloudEnabled,
           hasPointCloudObject: !!cameraManager.pointCloud,
           animationRunning: !!cameraManager.animationFrameId,
@@ -842,9 +844,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.testPointCloud = function () {
       console.log("[App] 运行点云测试");
       try {
-        if (cameraManager.viewMode !== "pointCloud") {
+        if (cameraManager.standardCamera.viewMode !== "pointCloud") {
           console.log("[App] 当前不是点云模式，切换到点云模式");
-          cameraManager.setViewMode("pointCloud");
+          cameraManager.standardCamera.setViewMode("pointCloud");
         } else {
           console.log("[App] 已处于点云模式，尝试重新初始化渲染");
           if (cameraManager.animatePointCloud) {
