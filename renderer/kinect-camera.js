@@ -58,9 +58,9 @@ class KinectCameraManager {
     
     // 基本属性初始化
     this.isRunning = false;
-    this.localCanvas = document.getElementById('localVideo');
-    this.remoteCanvas = document.getElementById('remoteVideo');
-    this.colorCanvas = document.getElementById('localVideo'); // 用于渲染点云的 canva，后续判断 isMac 后再重新赋值
+    this.localCanvas = document.getElementById('localCanvas');
+    this.remoteCanvas = document.getElementById('remoteCanvas');
+    this.colorCanvas = document.getElementById('localCanvas'); // 用于渲染点云的 canva，后续判断 isMac 后再重新赋值
 
     this.colorCtx = this.colorCanvas ? this.colorCanvas.getContext('2d') : null;
     

@@ -14,9 +14,9 @@ class CameraManager {
 
     // 基本属性初始化
     this.isRunning = false;
-    this.localCanvas = document.getElementById("localVideo");
+    this.localCanvas = document.getElementById("localCanvas");
     this.localCtx = this.localCanvas ? this.localCanvas.getContext("2d") : null;
-    this.remoteCanvas = document.getElementById("remoteVideo");
+    this.remoteCanvas = document.getElementById("remoteCanvas");
     this.remoteCtx = this.remoteCanvas
       ? this.remoteCanvas.getContext("2d")
       : null;

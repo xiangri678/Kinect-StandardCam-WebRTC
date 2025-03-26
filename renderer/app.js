@@ -27,12 +27,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   const viewModeSelect = document.getElementById("viewModeSelect");
 
   // 默认服务器URL
-  if (!serverUrlInput.value) {
-    // 尝试使用当前网址所在的服务器作为默认信令服务器
-    const protocol = window.location.protocol === "https:" ? "https:" : "http:";
-    const host = window.location.hostname;
-    const port = "3001"; // 信令服务器端口
-    serverUrlInput.value = `${protocol}//${host}:${port}`;
+  let serverUrlValue = "";
+  if (serverUrlInput) {
+    // 如果在登录页面
+    if (!serverUrlInput.value) {
+      // 尝试使用当前网址所在的服务器作为默认信令服务器
+      const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+      const host = window.location.hostname;
+      const port = "3001"; // 信令服务器端口
+      serverUrlInput.value = `${protocol}//${host}:${port}`;
+    }
+    serverUrlValue = serverUrlInput.value;
+  } else {
+    // 如果在会议页面，尝试从sessionStorage获取
+    serverUrlValue = sessionStorage.getItem('meetingServerUrl');
+    if (!serverUrlValue) {
+      // 使用默认值
+      const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+      const host = window.location.hostname;
+      const port = "3001"; // 信令服务器端口
+      serverUrlValue = `${protocol}//${host}:${port}`;
+    }
   }
 
   // 音频状态
@@ -77,6 +92,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       connectionStatus.className = type;
     }
 
+    // 如果有全局更新状态函数（与新UI集成）
+    if (window.updateConnectionStatus) {
+      window.updateConnectionStatus(message, type);
+    }
+
     // 添加到日志
     addLog("状态", message);
   }
@@ -113,6 +133,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.navigator &&
     window.navigator.platform &&
     window.navigator.platform.indexOf("Win") >= 0;
+  
   // 根据操作系统自动填写用户名
   if (userIdInput) {
     if (isWindows) {
@@ -130,7 +151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateStatus("正在检测 Kinect 设备...");
 
     // 导入 Kinect 摄像头管理器
-    const { KinectCameraManager } = require("./kinect-camera");
+    const { KinectCameraManager } = require("./renderer/kinect-camera");
 
     // 初始化 Kinect 摄像头
     cameraManager = await KinectCameraManager.initialize();
@@ -177,7 +198,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 尝试回退到标准摄像头
     try {
       console.log("尝试回退到标准摄像头...");
-      const { CameraManager } = require("./camera");
+      const { CameraManager } = require("./renderer/camera");
       cameraManager = await CameraManager.initialize();
       console.log("标准摄像头初始化完成");
       updateStatus("标准摄像头初始化完成");
@@ -286,17 +307,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       addLog("系统", "用户点击了本地测试按钮");
 
       // 设置默认值
-      roomIdInput.value = roomIdInput.value || "测试房间";
-      userIdInput.value = userIdInput.value || "本地用户";
-      serverUrlInput.value = "http://localhost:3001";
+      let roomIdValue = "测试房间";
+      let userIdValue = "本地用户";
+      let serverValue = "http://localhost:3001";
+      
+      if (roomIdInput) roomIdInput.value = roomIdInput.value || roomIdValue;
+      if (userIdInput) userIdInput.value = userIdInput.value || userIdValue;
+      if (serverUrlInput) serverUrlInput.value = serverValue;
+      
+      // 从输入框获取值或使用默认值
+      roomIdValue = roomIdInput ? roomIdInput.value : roomIdValue;
+      userIdValue = userIdInput ? userIdInput.value : userIdValue;
+      serverValue = serverUrlInput ? serverUrlInput.value : serverValue;
 
       // 启动本地测试模式
-      initializeLocalTest();
+      initializeLocalTest(roomIdValue, userIdValue, serverValue);
     });
   }
 
   // 本地测试初始化函数
-  async function initializeLocalTest() {
+  async function initializeLocalTest(roomId, userId, serverUrl) {
     try {
       // 确保摄像头管理器已初始化
       if (!cameraManager) {
@@ -346,16 +376,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (cameraToggle) cameraToggle.disabled = false;
 
       // 连接到本地服务器
-      await initializeSession(
-        roomIdInput.value,
-        userIdInput.value,
-        serverUrlInput.value
-      );
+      await initializeSession(roomId, userId, serverUrl);
     } catch (error) {
       console.error("本地测试模式初始化失败:", error);
       updateStatus("本地测试模式初始化失败", "error");
       addLog("错误", `本地测试初始化失败: ${error.message}`);
     }
+  }
+
+  // 检查是否在会议页面，并自动从sessionStorage获取登录信息
+  const isInMeetingPage = !roomIdInput && !userIdInput && window.location.pathname.includes('index.html');
+  if (isInMeetingPage) {
+    console.log("检测到会议页面，尝试从sessionStorage获取会议信息");
+    const roomId = sessionStorage.getItem('meetingRoomId');
+    const userId = sessionStorage.getItem('meetingUserId');
+    const serverUrl = sessionStorage.getItem('meetingServerUrl');
+    
+    if (roomId && userId) {
+      console.log(`从sessionStorage获取到会议信息: 房间=${roomId}, 用户=${userId}`);
+      addLog("系统", `从会话存储获取到会议信息`);
+      
+      // 自动连接到会议
+      setTimeout(() => {
+        initializeSession(roomId, userId, serverUrl || serverUrlValue);
+      }, 1000); // 稍微延迟，确保页面已完全加载
+    }
+  } else {
+    console.log("未检测到会议页面，不自动连接到会议");
   }
 
   // 设置连接按钮点击事件
@@ -410,8 +457,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       isMuted = webrtcManager.toggleMute();
-      muteButton.textContent = isMuted ? "取消静音" : "静音";
+      // muteButton.textContent = isMuted ? "取消静音" : "静音";
       addLog("音频", isMuted ? "已静音" : "已取消静音");
+      
+      // 新界面支持类名切换
+      if (muteButton.classList) {
+        muteButton.classList.toggle('active', isMuted);
+        const tooltipElement = muteButton.querySelector('.tooltip-text');
+        if (tooltipElement) {
+          tooltipElement.textContent = isMuted ? '取消静音' : '静音';
+        }
+      }
     });
   }
 
@@ -424,8 +480,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       isCameraOff = webrtcManager.toggleCamera();
-      cameraToggle.textContent = isCameraOff ? "开启摄像头" : "关闭摄像头";
+      // cameraToggle.textContent = isCameraOff ? "开启摄像头" : "关闭摄像头";
       addLog("视频", isCameraOff ? "摄像头已关闭" : "摄像头已开启");
+      
+      // 新界面支持类名切换
+      if (cameraToggle.classList) {
+        cameraToggle.classList.toggle('active', isCameraOff);
+        const tooltipElement = cameraToggle.querySelector('.tooltip-text');
+        if (tooltipElement) {
+          tooltipElement.textContent = isCameraOff ? '开启视频' : '关闭视频';
+        }
+      }
     });
   }
 
@@ -440,6 +505,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 初始化WebRTC会话
   async function initializeSession(roomId, userId, serverUrl) {
+    // 确保摄像头流已启动
+    if (!cameraManager.isRunning) {
+      updateStatus("正在启动摄像头流...", "warning");
+      cameraManager.startStreaming((frameData) => {
+        // 帧处理回调
+        if (debugMode) {
+          // 调试模式下可以显示帧信息
+        }
+      });
+    }
+
     try {
       updateStatus("正在初始化会话...", "warning");
       updateServerStatus(`正在连接到 ${serverUrl}`, "warning");
@@ -490,10 +566,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         onConnected: () => {
           updateStatus("已连接到远程用户", "success");
           addLog("连接", "已成功连接到远程用户");
+
+          // 更新参与者数量，触发布局更新
+          if (window.updateLayout) {
+            window.updateLayout(2); // 默认为2个参与者(本地+远程)
+          }
         },
         onDisconnected: () => {
           updateStatus("与远程用户断开连接");
           addLog("连接", "与远程用户断开连接");
+
+          // 更新参与者数量，触发布局更新
+          if (window.updateLayout) {
+            window.updateLayout(1); // 只有本地参与者
+          }
 
           // 重新启用连接按钮
           if (connectButton) {
@@ -503,6 +589,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         onRemoteStream: (stream) => {
           console.log("收到远程媒体流");
           addLog("媒体", "收到远程媒体流");
+
+          // 更新远程用户信息
+          const remoteUserInfo = document.getElementById("remoteUserInfo");
+          if (remoteUserInfo) {
+            remoteUserInfo.textContent =
+              webrtcManager.remoteUserId || "远程用户";
+          }
 
           // 远程视频元素在WebRTCManager中处理
         },
@@ -533,6 +626,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
   }
+
+  // 将initializeSession函数暴露为全局函数，以便新的UI可以调用
+  window.initializeSession = initializeSession;
 
   // =========================================
   // 点云模式相关全局函数
@@ -717,16 +813,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
               // 如果Remote Canvas尚未建立Three.js渲染器，创建一个
               if (!cameraManager.standardCamera.threeJsRenderer) {
-                cameraManager.standardCamera.threeJsRenderer = new THREE.WebGLRenderer({
-                  canvas: remoteCanvas,
-                  alpha: true,
-                  antialias: true,
-                });
+                cameraManager.standardCamera.threeJsRenderer =
+                  new THREE.WebGLRenderer({
+                    canvas: remoteCanvas,
+                    alpha: true,
+                    antialias: true,
+                  });
                 cameraManager.standardCamera.threeJsRenderer.setSize(
                   remoteCanvas.width,
                   remoteCanvas.height
                 );
-                cameraManager.standardCamera.threeJsRenderer.setClearColor(0x000000, 0);
+                cameraManager.standardCamera.threeJsRenderer.setClearColor(
+                  0x000000,
+                  0
+                );
 
                 console.log(
                   "[App] 为**远程Canvas**创建了Three.js渲染器，注意 Windows 不应该走到这里，check"
@@ -738,9 +838,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 cameraManager.standardCamera.threeJsScene,
                 cameraManager.standardCamera.threeJsCamera
               );
-              console.log("[App] 在远程Canvas上渲染了点云,我改了这里，加了 standardCamera");
+              console.log(
+                "[App] 在远程Canvas上渲染了点云,我改了这里，加了 standardCamera"
+              );
             } else {
-              console.log("[App] 远程Canvas上没有渲染器，无法渲染点云(我改了这里，加了 standardCamera)");
+              console.log(
+                "[App] 远程Canvas上没有渲染器，无法渲染点云(我改了这里，加了 standardCamera)"
+              );
             }
           }
 
@@ -790,7 +894,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 如果当前是点云模式，确保启用数据通道
-    if (cameraManager.standardCamera.viewMode === "pointCloud") {
+    if (isWindows && cameraManager.viewMode === "pointCloud") {
+      console.log("[App] 当前已处于点云模式，确保启用数据通道");
+      webrtcManager.setPointCloudMode(true);
+      if (webrtcManager.isConnected) {
+        console.log("[App] WebRTC已连接，创建数据通道");
+        webrtcManager.createDataChannel();
+        addLog("系统", "已为现有连接创建点云数据通道");
+      }
+    } else if (
+      cameraManager.standardCamera &&
+      cameraManager.standardCamera.viewMode === "pointCloud"
+    ) {
       console.log("[App] 当前已处于点云模式，确保启用数据通道");
       webrtcManager.setPointCloudMode(true);
       if (webrtcManager.isConnected) {

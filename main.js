@@ -109,8 +109,8 @@ function createWindow() {
   // 窗口创建后立即最大化
   mainWindow.maximize();
 
-  // const indexPath = path.join(__dirname, 'renderer/login.html'); // 新版代码
-  const indexPath = path.join(__dirname, 'renderer/index.html'); // 老版代码
+  const indexPath = path.join(__dirname, 'login.html'); // 新版代码
+  // const indexPath = path.join(__dirname, 'renderer/index.html'); // 老版代码
   console.log(`加载页面: ${indexPath}`);
   
   // 加载应用的 login.html

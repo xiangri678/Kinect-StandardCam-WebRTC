@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频会议系统 - 登录</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a73e8, #6c5ce7);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .login-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+            width: 400px;
+            padding: 40px;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo img {
+            max-width: 180px;
+            max-height: 180px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+        }
+        
+        .logo h1 {
+            margin-top: 10px;
+            color: #333;
+            font-size: 24px;
+            font-weight: 500;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border 0.3s;
+        }
+        
+        .form-group input:focus {
+            border-color: #1a73e8;
+            outline: none;
+        }
+        
+        .advanced-toggle {
+            color: #1a73e8;
+            font-size: 14px;
+            cursor: pointer;
+            margin-bottom: 15px;
+            display: inline-block;
+        }
+        
+        .advanced-options {
+            display: none;
+            margin-bottom: 20px;
+        }
+        
+        .join-button {
+            background: #1a73e8;
+            color: white;
+            width: 100%;
+            border: none;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .join-button:hover {
+            background: #0d62cb;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #777;
+        }
+        
+        .error-message {
+            color: #e74c3c;
+            font-size: 14px;
+            margin-top: 5px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <img src="renderer/assets/images/logo.svg" alt="视频会议系统" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxjaXJjbGUgZmlsbD0iIzFhNzNlOCIgY3g9IjQwIiBjeT0iNDAiIHI9IjQwIi8+PHBhdGggZD0iTTMwIDI1aDIwdjMwSDMweiIgZmlsbD0iI0ZGRiIvPjwvZz48L3N2Zz4=';">
+            <h1>视频会议系统</h1>
+        </div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="roomIdInput">会议号</label>
+                <input type="text" id="roomIdInput" placeholder="请输入会议号" required value="001">
+                <div class="error-message" id="roomIdError"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="userIdInput">用户名</label>
+                <input type="text" id="userIdInput" placeholder="请输入您的名字" required>
+                <div class="error-message" id="userIdError"></div>
+            </div>
+            
+            <div class="advanced-toggle" id="advancedToggle">高级选项 ▼</div>
+            
+            <div class="advanced-options" id="advancedOptions">
+                <div class="form-group">
+                    <label for="serverUrlInput">信令服务器地址</label>
+                    <input type="text" id="serverUrlInput" placeholder="信令服务器地址" value="http://10.29.196.83:3001">
+                    <div class="error-message" id="serverUrlError"></div>
+                </div>
+            </div>
+            
+            <button type="submit" class="join-button">加入会议</button>
+        </form>
+        
+        <div class="footer">
+            © 2026 视频会议系统 | 支持 Kinect 和标准摄像头
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // 高级选项切换
+            const advancedToggle = document.getElementById('advancedToggle');
+            const advancedOptions = document.getElementById('advancedOptions');
+            
+            advancedToggle.addEventListener('click', () => {
+                const isVisible = advancedOptions.style.display === 'block';
+                advancedOptions.style.display = isVisible ? 'none' : 'block';
+                advancedToggle.textContent = isVisible ? '高级选项 ▼' : '高级选项 ▲';
+            });
+            
+            // 自动设置默认服务器URL
+            const serverUrlInput = document.getElementById('serverUrlInput');
+            if (!serverUrlInput.value) {
+                const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+                const host = window.location.hostname;
+                const port = "3001"; // 信令服务器端口
+                serverUrlInput.value = `${protocol}//${host}:${port}`;
+            }
+            
+            // 自动设置用户名（基于操作系统）
+            const userIdInput = document.getElementById('userIdInput');
+            if (!userIdInput.value) {
+                const isWindows = navigator.platform && navigator.platform.indexOf("Win") >= 0;
+                userIdInput.value = isWindows ? "Windows用户" : "Mac用户";
+            }
+            
+            // 表单提交处理
+            const loginForm = document.getElementById('loginForm');
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                // 获取表单数据
+                const roomId = document.getElementById('roomIdInput').value.trim();
+                const userId = document.getElementById('userIdInput').value.trim();
+                const serverUrl = document.getElementById('serverUrlInput').value.trim();
+                
+                // 验证表单
+                let isValid = true;
+                
+                if (!roomId) {
+                    document.getElementById('roomIdError').textContent = '请输入会议号';
+                    document.getElementById('roomIdError').style.display = 'block';
+                    isValid = false;
+                } else {
+                    document.getElementById('roomIdError').style.display = 'none';
+                }
+                
+                if (!userId) {
+                    document.getElementById('userIdError').textContent = '请输入用户名';
+                    document.getElementById('userIdError').style.display = 'block';
+                    isValid = false;
+                } else {
+                    document.getElementById('userIdError').style.display = 'none';
+                }
+                
+                if (advancedOptions.style.display === 'block' && !serverUrl) {
+                    document.getElementById('serverUrlError').textContent = '请输入服务器地址';
+                    document.getElementById('serverUrlError').style.display = 'block';
+                    isValid = false;
+                } else {
+                    document.getElementById('serverUrlError').style.display = 'none';
+                }
+                
+                if (isValid) {
+                    // 保存到sessionStorage
+                    sessionStorage.setItem('meetingRoomId', roomId);
+                    sessionStorage.setItem('meetingUserId', userId);
+                    sessionStorage.setItem('meetingServerUrl', serverUrl);
+                    
+                    // 转到会议页面
+                    window.location.href = 'index.html';
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

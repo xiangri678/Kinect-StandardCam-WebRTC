@@ -258,7 +258,7 @@ class WebRTCManager {
       this.remoteStream = stream;
       
       // 使用canvas渲染远程视频，而不是直接设置srcObject
-      const remoteVideo = document.getElementById('remoteVideo');
+      const remoteVideo = document.getElementById('remoteCanvas');
       if (remoteVideo) {
         // 创建远程视频渲染上下文
         this.remoteCanvas = remoteVideo;
@@ -596,7 +596,7 @@ class WebRTCManager {
   }
   
   setVolume(value) {
-    const remoteVideo = document.getElementById('remoteVideo');
+    const remoteVideo = document.getElementById('remoteCanvas');
     if (remoteVideo) {
       remoteVideo.volume = value;
     }
