@@ -367,6 +367,16 @@
         .video-wrapper.pinned .pin-btn {
             background-color: rgba(26, 115, 232, 0.8);
         }
+        
+        /* 参会者统计 */
+        .participant-counter {
+            margin-left: 15px;
+            font-size: 14px;
+            color: #bbb;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -375,6 +385,7 @@
         <div class="meeting-info">
             <div class="meeting-title">视频会议</div>
             <div class="meeting-id" id="displayRoomId">会议号: ...</div>
+            <div class="participant-counter" id="participantCounter">0 位参会者</div>
         </div>
         <div class="connection-status">
             <div class="status-indicator" id="statusIndicator"></div>
@@ -400,14 +411,7 @@
                 </div>
             </div>
             
-            <!-- 远程视频 -->
-            <div class="video-wrapper remote" id="remoteVideoWrapper">
-                <canvas id="remoteCanvas" class="video-element"></canvas>
-                <div class="user-info" id="remoteUserInfo">等待远程用户...</div>
-                <div class="video-controls">
-                    <div class="video-control-btn pin-btn" title="固定视图" id="pinRemoteVideo">📌</div>
-                </div>
-            </div>
+            <!-- 远程视频将在JS中动态添加 -->
         </div>
         
         <!-- 添加摄像头管理器需要的隐藏Canvas元素 -->
@@ -548,7 +552,7 @@
             
             // 预初始化Canvas元素
             function initializeCanvasElements() {
-                const canvasIds = ['colorCanvas', 'localCanvas', 'depthCanvas', 'bodyIndexCanvas', 'bodyCanvas', 'remoteCanvas'];
+                const canvasIds = ['colorCanvas', 'localCanvas', 'depthCanvas', 'bodyIndexCanvas', 'bodyCanvas'];
                 canvasIds.forEach(id => {
                     const canvas = document.getElementById(id);
                     if (canvas) {
@@ -651,32 +655,121 @@
             
             // 处理固定视频的按钮
             const pinLocalVideo = document.getElementById('pinLocalVideo');
-            const pinRemoteVideo = document.getElementById('pinRemoteVideo');
             
-            if (pinLocalVideo && pinRemoteVideo) {
+            if (pinLocalVideo) {
                 pinLocalVideo.addEventListener('click', () => {
-                    // 实现固定本地视频的逻辑
-                    // 例如，添加一个'pinned'类，并调整CSS
                     document.querySelectorAll('.video-wrapper').forEach(wrapper => {
                         wrapper.classList.remove('pinned');
                     });
                     document.getElementById('localVideoWrapper').classList.add('pinned');
                 });
-                
-                pinRemoteVideo.addEventListener('click', () => {
-                    // 实现固定远程视频的逻辑
-                    document.querySelectorAll('.video-wrapper').forEach(wrapper => {
-                        wrapper.classList.remove('pinned');
-                    });
-                    document.getElementById('remoteVideoWrapper').classList.add('pinned');
+            }
+            
+            // 远程视频的固定按钮会在创建远程视频元素时添加
+        }
+        
+        // 创建远程视频元素
+        window.createRemoteVideoElement = function(userId) {
+            // 检查是否已经存在此用户的视频容器
+            const existingWrapper = document.getElementById(`remoteVideo_${userId}_wrapper`);
+            if (existingWrapper) {
+                console.log(`已存在用户 ${userId} 的视频容器，返回现有Canvas`);
+                return document.getElementById(`remoteCanvas_${userId}`);
+            }
+            
+            console.log(`为用户 ${userId} 创建新的视频容器`);
+            
+            // 创建新的视频包装器
+            const videoWrapper = document.createElement('div');
+            videoWrapper.className = 'video-wrapper remote';
+            videoWrapper.id = `remoteVideo_${userId}_wrapper`;
+            videoWrapper.style.display = 'block'; // 确保包装器可见
+            
+            // 创建Canvas元素
+            const canvas = document.createElement('canvas');
+            canvas.className = 'video-element';
+            canvas.id = `remoteCanvas_${userId}`;
+            canvas.width = 640;  // 默认尺寸
+            canvas.height = 480;
+            canvas.style.display = 'block'; // 确保Canvas可见
+            
+            // 用户信息
+            const userInfo = document.createElement('div');
+            userInfo.className = 'user-info';
+            userInfo.textContent = userId;
+            
+            // 添加视频控制按钮
+            const videoControls = document.createElement('div');
+            videoControls.className = 'video-controls';
+            
+            const pinBtn = document.createElement('div');
+            pinBtn.className = 'video-control-btn pin-btn';
+            pinBtn.title = '固定视图';
+            pinBtn.textContent = '📌';
+            pinBtn.onclick = function() {
+                document.querySelectorAll('.video-wrapper').forEach(wrapper => {
+                    wrapper.classList.remove('pinned');
                 });
+                videoWrapper.classList.add('pinned');
+            };
+            
+            videoControls.appendChild(pinBtn);
+            
+            // 将所有元素添加到包装器
+            videoWrapper.appendChild(canvas);
+            videoWrapper.appendChild(userInfo);
+            videoWrapper.appendChild(videoControls);
+            
+            // 添加到视频容器
+            const videoContainer = document.getElementById('videoContainer');
+            if (videoContainer) {
+                videoContainer.appendChild(videoWrapper);
+                
+                // 更新参与者计数
+                updateParticipantCount();
+                
+                // 更新布局
+                updateLayout();
+                console.log(`已将用户 ${userId} 的视频容器添加到DOM`);
+            } else {
+                console.error('找不到videoContainer元素');
+                return null;
+            }
+            
+            return canvas;
+        };
+        
+        // 移除远程视频元素
+        window.removeRemoteVideoElement = function(userId) {
+            const wrapper = document.getElementById(`remoteVideo_${userId}_wrapper`);
+            if (wrapper) {
+                const parent = wrapper.parentNode;
+                if (parent) {
+                    parent.removeChild(wrapper);
+                    
+                    // 更新参与者计数
+                    updateParticipantCount();
+                    
+                    // 更新布局
+                    updateLayout();
+                }
+            }
+        };
+        
+        // 更新参与者计数
+        function updateParticipantCount() {
+            const participantCounter = document.getElementById('participantCounter');
+            if (participantCounter) {
+                const count = document.querySelectorAll('.video-wrapper').length;
+                participantCounter.textContent = `${count} 位参会者`;
             }
         }
         
         // 动态更新视频容器布局
-        function updateLayout(participantCount) {
+        function updateLayout() {
             const videoContainer = document.getElementById('videoContainer');
             const layoutSelect = document.getElementById('layoutSelect');
+            const participantCount = document.querySelectorAll('.video-wrapper').length;
             
             if (videoContainer) {
                 // 移除所有布局类
@@ -721,6 +814,7 @@
         // 导出功能给app.js使用
         window.updateConnectionStatus = updateConnectionStatus;
         window.updateLayout = updateLayout;
+        window.updateParticipantCount = updateParticipantCount;
     </script>
     
     <!-- 引入必要的库 -->
