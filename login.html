@@ -13,19 +13,33 @@
         }
         
         body {
-            background: linear-gradient(135deg, #1a73e8, #6c5ce7);
+            background: #000;
             height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #bgCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
         }
         
         .login-container {
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
             border-radius: 12px;
             box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
             width: 400px;
             padding: 40px;
+            position: relative;
+            z-index: 1;
+            backdrop-filter: blur(10px);
         }
         
         .logo {
@@ -118,6 +132,7 @@
     </style>
 </head>
 <body>
+    <canvas id="bgCanvas"></canvas>
     <div class="login-container">
         <div class="logo">
             <img src="renderer/assets/images/logo.svg" alt="视频会议系统" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxjaXJjbGUgZmlsbD0iIzFhNzNlOCIgY3g9IjQwIiBjeT0iNDAiIHI9IjQwIi8+PHBhdGggZD0iTTMwIDI1aDIwdjMwSDMweiIgZmlsbD0iI0ZGRiIvPjwvZz48L3N2Zz4=';">
@@ -156,6 +171,71 @@
     </div>
     
     <script>
+        // 背景动画代码
+        const canvas = document.getElementById('bgCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 设置canvas尺寸
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // 波浪参数
+        const waves = {
+            y: canvas.height * 0.5,
+            length: 0.008,
+            amplitude: 50,
+            frequency: 0.02
+        };
+
+        // 创建渐变色
+        const createGradient = (x, y) => {
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, 'rgba(70, 100, 255, 0.5)');    // 蓝色
+            gradient.addColorStop(1, 'rgba(255, 100, 255, 0.5)');   // 粉紫色
+            return gradient;
+        };
+
+        // 绘制波浪
+        const drawWave = (time) => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制多条平行曲线
+            for (let j = 0; j < 20; j++) {
+                ctx.beginPath();
+                ctx.strokeStyle = createGradient();
+                ctx.lineWidth = 1;
+                
+                // 绘制波浪路径
+                for (let i = 0; i < canvas.width; i++) {
+                    const x = i;
+                    const y = waves.y 
+                        + Math.sin(i * waves.length + time * waves.frequency) * waves.amplitude
+                        + j * 15; // 每条线的垂直偏移
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                
+                ctx.stroke();
+            }
+        };
+
+        // 动画循环
+        let time = 0;
+        const animate = () => {
+            time++;
+            drawWave(time);
+            requestAnimationFrame(animate);
+        };
+        animate();
+
         document.addEventListener('DOMContentLoaded', () => {
             // 高级选项切换
             const advancedToggle = document.getElementById('advancedToggle');
