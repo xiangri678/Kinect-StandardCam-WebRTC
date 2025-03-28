@@ -16,7 +16,7 @@ class CameraManager {
     this.isRunning = false;
     this.localCanvas = document.getElementById("localCanvas");
     this.localCtx = this.localCanvas ? this.localCanvas.getContext("2d") : null;
-    this.remoteCanvas = document.getElementById("remoteCanvas");
+    this.remoteCanvas = document.getElementById("remoteCanvas"); // 多人会议这就失效了，ID 是 remoteCanvas_${userId} ，重新赋值
     this.remoteCtx = this.remoteCanvas
       ? this.remoteCanvas.getContext("2d")
       : null;
@@ -462,13 +462,13 @@ class CameraManager {
   }
   
   // 设置 mac 视图模式
-  setViewMode(mode) {
-    if (mode !== 'color' && mode !== 'pointCloud') {
+  setViewMode(mode, fromUserId) {
+    if (mode !== 'color' && mode !== 'pointCloud' && mode !== 'depth' && mode !== 'infrared') {
       console.error('无效的视图模式:', mode);
       return;
     }
     
-    console.log(`[Camera] 设置视图模式: ${mode}, 当前模式: ${this.viewMode}`);
+    console.log(`[Camera]  王冠达测试：设置视图模式: ${mode}, 当前模式: ${this.viewMode}`);
     
     // 检查THREE.js是否可用
     const THREE = window.THREE;
@@ -515,7 +515,7 @@ class CameraManager {
       // 设置点云
       try {
         console.log("[Camera] 开始设置点云环境");
-        this.setupPointCloud();
+        this.setupPointCloud(fromUserId);
 
         // 如果有彩色Canvas，隐藏它
         if (this.remoteCanvas) {
@@ -531,7 +531,7 @@ class CameraManager {
 
         // 显示点云Canvas
         if (this.pointCloudCanvas) {
-          console.log("[Camera] 显示点云Canvas");
+          console.log("[Camera] 0329：显示点云Canvas");
           this.pointCloudCanvas.style.display = "block";
         }
 
@@ -588,7 +588,7 @@ class CameraManager {
   }
   
   // 设置点云
-  setupPointCloud() {
+  setupPointCloud(fromUserId) {
     const THREE = window.THREE;
     if (!THREE) {
       console.error('THREE.js库未加载，无法设置点云');
@@ -612,15 +612,19 @@ class CameraManager {
       this.pointCloudCanvas.height = 480;
       this.pointCloudCanvas.style.display = 'block';
       this.pointCloudCanvas.id = 'pointCloudCanvas'; // 添加ID便于调试
-      
+      this.remoteCanvas = document.getElementById(`remoteCanvas_${fromUserId}`);
       // 将点云Canvas添加到DOM中，替换彩色Canvas的位置
-      if (this.remoteCanvas && this.remoteCanvas.parentNode) {
-        this.remoteCanvas.parentNode.insertBefore(this.pointCloudCanvas, this.remoteCanvas.nextSibling);
-        console.log('点云Canvas已添加到DOM');
-      } else {
-        document.body.appendChild(this.pointCloudCanvas);
-        console.log('点云Canvas已添加到body');
-      }
+      // if (this.remoteCanvas && this.remoteCanvas.parentNode) {
+      //   this.remoteCanvas.parentNode.insertBefore(this.pointCloudCanvas, this.remoteCanvas.nextSibling);
+      //   console.log('点云Canvas已添加到DOM');
+      // } else {
+      //   document.body.appendChild(this.pointCloudCanvas);
+      //   console.log('点云Canvas已添加到body');
+      // }
+      this.remoteCanvas.parentNode.insertBefore(
+        this.pointCloudCanvas,
+        this.remoteCanvas.nextSibling
+      );
       
       // 创建Three.js场景
       this.threeJsScene = new THREE.Scene();

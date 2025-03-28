@@ -893,7 +893,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 检查模式是否有效
-    if (mode !== "color" && mode !== "pointCloud") {
+    if (mode !== "color" && mode !== "pointCloud" && mode !== "depth" && mode !== "infrared") {
       console.error(`[App] 无效的视图模式: ${mode}`);
       addLog("错误", `无效的视图模式: ${mode}`);
       return;
@@ -935,7 +935,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             );
           }
         }
-      } else if (mode === "color") {
+      } else if (mode === "color" || mode === "depth" || mode === "infrared") {
         // 如果是彩色视频模式，需要恢复远程视频渲染
         if (webrtcManager && webrtcManager.remoteCanvas) {
           console.log("[App] 切换到彩色视频模式，重启远程视频渲染");
@@ -945,7 +945,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // 直接调用摄像头管理器的setViewMode方法
       console.log(`[App] 调用摄像头管理器的setViewMode方法: ${mode}`);
-      cameraManager.standardCamera.setViewMode(mode);
+      cameraManager.standardCamera.setViewMode(mode, fromUserId);
 
       console.log(`[App] 模式已成功切换到: ${mode}`);
       addLog(

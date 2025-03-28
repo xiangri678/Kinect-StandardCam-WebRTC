@@ -898,7 +898,7 @@ class WebRTCManager {
     videoTracks.forEach(track => {
       track.enabled = isCameraOff;
     });
-    
+
     return !isCameraOff; // 返回摄像头是否关闭
   }
   
