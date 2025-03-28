@@ -1095,6 +1095,57 @@ class CameraManager {
     this.isRunning = false;
     console.log('摄像头已关闭');
   }
+
+  // 从摄像头或Canvas获取视频流
+  async getVideoStream() {
+    console.log('[Camera] 尝试获取视频流');
+    
+    // 首先检查是否有本地视频元素流
+    if (this.videoElement && this.videoElement.srcObject) {
+      console.log('[Camera] 从视频元素获取流');
+      return this.videoElement.srcObject;
+    }
+    
+    // 如果有Canvas并且正在运行，从Canvas获取流
+    if (this.localCanvas) {
+      try {
+        console.log('[Camera] 尝试从Canvas获取流');
+        const stream = this.localCanvas.captureStream(30); // 30fps
+        
+        const tracks = stream.getTracks();
+        console.log('[Camera] 从Canvas获取的流包含轨道:', tracks.map(t => ({
+          kind: t.kind,
+          label: t.label,
+          enabled: t.enabled,
+          readyState: t.readyState
+        })));
+        
+        if (tracks.length > 0) {
+          return stream;
+        }
+      } catch (error) {
+        console.error('[Camera] 从Canvas获取流失败:', error);
+      }
+    }
+    
+    // 如果都失败了，尝试重新获取摄像头流
+    try {
+      console.log('[Camera] 尝试重新获取摄像头流');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        },
+        audio: false
+      });
+      
+      console.log('[Camera] 成功获取新的摄像头流');
+      return stream;
+    } catch (error) {
+      console.error('[Camera] 获取摄像头流失败:', error);
+      return null;
+    }
+  }
 }
 
 console.log('标准摄像头模块加载完成');

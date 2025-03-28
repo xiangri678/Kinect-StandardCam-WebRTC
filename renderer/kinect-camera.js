@@ -37,7 +37,7 @@ try {
     console.warn('THREE.js库未通过全局变量找到，尝试使用require导入');
     THREE = require('three');
   }
-  console.log('WGD: 3js加载成功')
+  console.log('THREE.js加载成功')
 } catch (error) {
   console.warn('THREE.js库加载失败，可能会影响点云功能', error);
 }
@@ -362,6 +362,9 @@ class KinectCameraManager {
         }
       });
       
+      const canvasStream = this.colorCanvas.captureStream(30); // 30fps
+      webrtcManager.localStream = canvasStream;
+
       this.isRunning = true;
       return true;
     } catch (error) {
@@ -1290,6 +1293,54 @@ class KinectCameraManager {
     } catch (error) {
       console.error('处理远程点云数据时出错:', error);
     }
+  }
+
+  // 从Kinect或Canvas获取视频流
+  async getVideoStream() {
+    console.log('[KinectCamera] 尝试获取视频流');
+    
+    // 如果使用标准相机，则从标准相机获取流
+    if (!this.isKinectMode && this.standardCamera) {
+      console.log('[KinectCamera] 使用标准摄像头获取视频流');
+      return this.standardCamera.getVideoStream();
+    }
+    
+    // 如果有Canvas并且正在运行，从Canvas获取流
+    if (this.colorCanvas) {
+      try {
+        console.log('[KinectCamera] 尝试从colorCanvas获取流');
+        const stream = this.colorCanvas.captureStream(30); // 30fps
+        
+        const tracks = stream.getTracks();
+        console.log('[KinectCamera] 从Canvas获取的流包含轨道:', tracks.map(t => ({
+          kind: t.kind,
+          label: t.label,
+          enabled: t.enabled,
+          readyState: t.readyState
+        })));
+        
+        if (tracks.length > 0) {
+          // 更新本地流并通知WebRTC
+          window.localStream = stream;
+          
+          // 通知WebRTC管理器流已更新
+          if (window.notifyStreamUpdated) {
+            window.notifyStreamUpdated();
+          }
+          
+          return stream;
+        }
+      } catch (error) {
+        console.error('[KinectCamera] 从Canvas获取流失败:', error);
+      }
+    }
+    
+    // 更新媒体流
+    this.updateMediaStream();
+    
+    // 如果都失败了，返回null
+    console.error('[KinectCamera] 无法获取视频流');
+    return null;
   }
 }
 

@@ -5,8 +5,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 获取DOM元素
   const roomIdInput = document.getElementById("roomIdInput");
   const userIdInput = document.getElementById("userIdInput");
-  const connectButton = document.getElementById("connectButton");
-  const localTestButton = document.getElementById("localTestButton");
+  // const connectButton = document.getElementById("connectButton");
+  // const localTestButton = document.getElementById("localTestButton");
   const localVideo = document.getElementById("localVideo");
   const remoteVideo = document.getElementById("remoteVideo");
   const connectionStatus = document.getElementById("connectionStatus");
@@ -135,13 +135,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.navigator.platform.indexOf("Win") >= 0;
   
   // 根据操作系统自动填写用户名
-  if (userIdInput) {
-    if (isWindows) {
-      userIdInput.value = "win";
-    } else {
-      userIdInput.value = "mac";
-    }
-  }
+  // if (userIdInput) {
+  //   if (isWindows) {
+  //     userIdInput.value = "win";
+  //   } else {
+  //     userIdInput.value = "mac";
+  //   }
+  // }
 
   // 导入摄像头管理器 - 优先使用 Kinect
   let cameraManager;
@@ -162,29 +162,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       updateStatus("Kinect 摄像头初始化完成", "success");
       addLog("系统", "Kinect 摄像头初始化完成");
 
-      // 显示 Kinect 控制区域
-      if (kinectControlsDiv) {
-        kinectControlsDiv.style.display = "flex";
-      }
+      // 显示 Kinect 控制区域，老版用的
+      // if (kinectControlsDiv) {
+      //   kinectControlsDiv.style.display = "flex";
+      // }
 
       // 设置视图模式选择事件
-      if (viewModeSelect) {
-        viewModeSelect.addEventListener("change", () => {
-          const selectedMode = viewModeSelect.value;
-          addLog(
-            "Kinect",
-            `视图模式已切换到: ${
-              selectedMode === "color" ? "彩色视频" : "彩色点云"
-            }`
-          );
-          console.log(
-            `视图模式已切换到: ${
-              selectedMode === "color" ? "彩色视频" : "彩色点云"
-            }`
-          );
-          window.notifyRemoteModeChange(selectedMode);
-        });
-      }
+      // if (viewModeSelect) {
+      //   viewModeSelect.addEventListener("change", () => {
+      //     const selectedMode = viewModeSelect.value;
+      //     addLog(
+      //       "Kinect",
+      //       `视图模式已切换到: ${
+      //         selectedMode === "color" ? "彩色视频" : "彩色点云"
+      //       }`
+      //     );
+      //     console.log(
+      //       `视图模式已切换到: ${
+      //         selectedMode === "color" ? "彩色视频" : "彩色点云"
+      //       }`
+      //     );
+      //     window.notifyRemoteModeChange(selectedMode);
+      //   });
+      // }
     } else {
       console.log("未检测到 Kinect 设备，使用标准摄像头");
       updateStatus("未检测到 Kinect 设备，使用标准摄像头");
@@ -300,89 +300,89 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 设置本地测试按钮点击事件
-  if (localTestButton) {
-    localTestButton.addEventListener("click", () => {
-      console.log("启动本地测试模式");
-      updateStatus("启动本地测试模式...", "warning");
-      addLog("系统", "用户点击了本地测试按钮");
+  // if (localTestButton) {
+  //   localTestButton.addEventListener("click", () => {
+  //     console.log("启动本地测试模式");
+  //     updateStatus("启动本地测试模式...", "warning");
+  //     addLog("系统", "用户点击了本地测试按钮");
 
-      // 设置默认值
-      let roomIdValue = "测试房间";
-      let userIdValue = "本地用户";
-      let serverValue = "http://localhost:3001";
+  //     // 设置默认值
+  //     let roomIdValue = "测试房间";
+  //     let userIdValue = "本地用户";
+  //     let serverValue = "http://localhost:3001";
       
-      if (roomIdInput) roomIdInput.value = roomIdInput.value || roomIdValue;
-      if (userIdInput) userIdInput.value = userIdInput.value || userIdValue;
-      if (serverUrlInput) serverUrlInput.value = serverValue;
+  //     if (roomIdInput) roomIdInput.value = roomIdInput.value || roomIdValue;
+  //     if (userIdInput) userIdInput.value = userIdInput.value || userIdValue;
+  //     if (serverUrlInput) serverUrlInput.value = serverValue;
       
-      // 从输入框获取值或使用默认值
-      roomIdValue = roomIdInput ? roomIdInput.value : roomIdValue;
-      userIdValue = userIdInput ? userIdInput.value : userIdValue;
-      serverValue = serverUrlInput ? serverUrlInput.value : serverValue;
+  //     // 从输入框获取值或使用默认值
+  //     roomIdValue = roomIdInput ? roomIdInput.value : roomIdValue;
+  //     userIdValue = userIdInput ? userIdInput.value : userIdValue;
+  //     serverValue = serverUrlInput ? serverUrlInput.value : serverValue;
 
-      // 启动本地测试模式
-      initializeLocalTest(roomIdValue, userIdValue, serverValue);
-    });
-  }
+  //     // 启动本地测试模式
+  //     initializeLocalTest(roomIdValue, userIdValue, serverValue);
+  //   });
+  // }
 
   // 本地测试初始化函数
-  async function initializeLocalTest(roomId, userId, serverUrl) {
-    try {
-      // 确保摄像头管理器已初始化
-      if (!cameraManager) {
-        console.warn("摄像头管理器未初始化，尝试重新初始化");
-        updateStatus("正在重新初始化摄像头设备...", "warning");
-        addLog("系统", "尝试重新初始化摄像头管理器");
-        try {
-          // 尝试初始化 Kinect 摄像头
-          const { KinectCameraManager } = require("./kinect-camera");
-          cameraManager = await KinectCameraManager.initialize();
+  // async function initializeLocalTest(roomId, userId, serverUrl) {
+  //   try {
+  //     // 确保摄像头管理器已初始化
+  //     if (!cameraManager) {
+  //       console.warn("摄像头管理器未初始化，尝试重新初始化");
+  //       updateStatus("正在重新初始化摄像头设备...", "warning");
+  //       addLog("系统", "尝试重新初始化摄像头管理器");
+  //       try {
+  //         // 尝试初始化 Kinect 摄像头
+  //         const { KinectCameraManager } = require("./kinect-camera");
+  //         cameraManager = await KinectCameraManager.initialize();
 
-          // 如果使用 Kinect，显示控制区域
-          if (cameraManager.isKinectMode && kinectControlsDiv) {
-            kinectControlsDiv.style.display = "flex";
-            addLog("系统", "Kinect 设备已连接");
-          }
-        } catch (error) {
-          console.error("重新初始化摄像头管理器失败:", error);
-          updateStatus("摄像头初始化失败，无法继续", "error");
-          addLog("错误", `摄像头重新初始化失败: ${error.message}`);
-          return;
-        }
-      }
+  //         // 如果使用 Kinect，显示控制区域
+  //         if (cameraManager.isKinectMode && kinectControlsDiv) {
+  //           kinectControlsDiv.style.display = "flex";
+  //           addLog("系统", "Kinect 设备已连接");
+  //         }
+  //       } catch (error) {
+  //         console.error("重新初始化摄像头管理器失败:", error);
+  //         updateStatus("摄像头初始化失败，无法继续", "error");
+  //         addLog("错误", `摄像头重新初始化失败: ${error.message}`);
+  //         return;
+  //       }
+  //     }
 
-      // 启动摄像头流
-      updateStatus("正在启动摄像头流...", "warning");
-      cameraManager.startStreaming((frameData) => {
-        // 这里可以处理每一帧数据，例如显示帧率等
-        if (debugMode) {
-          // 只在调试模式显示帧数据，避免刷屏
-          // addLog('摄像头', `接收到帧数据: ${frameData.width}x${frameData.height}`);
-        }
-      });
+  //     // 启动摄像头流
+  //     updateStatus("正在启动摄像头流...", "warning");
+  //     cameraManager.startStreaming((frameData) => {
+  //       // 这里可以处理每一帧数据，例如显示帧率等
+  //       if (debugMode) {
+  //         // 只在调试模式显示帧数据，避免刷屏
+  //         // addLog('摄像头', `接收到帧数据: ${frameData.width}x${frameData.height}`);
+  //       }
+  //     });
 
-      // 更新状态
-      updateStatus("摄像头流已启动，等待用户操作", "success");
-      addLog(
-        "系统",
-        `摄像头流已启动 (${
-          cameraManager.isKinectMode ? "Kinect" : "标准摄像头"
-        })`
-      );
+  //     // 更新状态
+  //     updateStatus("摄像头流已启动，等待用户操作", "success");
+  //     addLog(
+  //       "系统",
+  //       `摄像头流已启动 (${
+  //         cameraManager.isKinectMode ? "Kinect" : "标准摄像头"
+  //       })`
+  //     );
 
-      // 启用控制按钮
-      if (muteButton) muteButton.disabled = false;
-      if (volumeSlider) volumeSlider.disabled = false;
-      if (cameraToggle) cameraToggle.disabled = false;
+  //     // 启用控制按钮
+  //     if (muteButton) muteButton.disabled = false;
+  //     if (volumeSlider) volumeSlider.disabled = false;
+  //     if (cameraToggle) cameraToggle.disabled = false;
 
-      // 连接到本地服务器
-      await initializeSession(roomId, userId, serverUrl);
-    } catch (error) {
-      console.error("本地测试模式初始化失败:", error);
-      updateStatus("本地测试模式初始化失败", "error");
-      addLog("错误", `本地测试初始化失败: ${error.message}`);
-    }
-  }
+  //     // 连接到本地服务器
+  //     await initializeSession(roomId, userId, serverUrl);
+  //   } catch (error) {
+  //     console.error("本地测试模式初始化失败:", error);
+  //     updateStatus("本地测试模式初始化失败", "error");
+  //     addLog("错误", `本地测试初始化失败: ${error.message}`);
+  //   }
+  // }
 
   // 检查是否在会议页面，并自动从sessionStorage获取登录信息
   const isInMeetingPage = !roomIdInput && !userIdInput && window.location.pathname.includes('index.html');
@@ -406,47 +406,47 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 设置连接按钮点击事件
-  if (connectButton) {
-    connectButton.addEventListener("click", async () => {
-      const roomId = roomIdInput.value.trim();
-      const userId = userIdInput.value.trim();
-      const serverUrl = serverUrlInput.value.trim();
+  // if (connectButton) {
+  //   connectButton.addEventListener("click", async () => {
+  //     const roomId = roomIdInput.value.trim();
+  //     const userId = userIdInput.value.trim();
+  //     const serverUrl = serverUrlInput.value.trim();
 
-      if (!roomId || !userId) {
-        updateStatus("请输入房间ID和用户名", "error");
-        addLog("错误", "房间ID或用户名为空");
-        return;
-      }
+  //     if (!roomId || !userId) {
+  //       updateStatus("请输入房间ID和用户名", "error");
+  //       addLog("错误", "房间ID或用户名为空");
+  //       return;
+  //     }
 
-      if (!serverUrl) {
-        updateServerStatus("请输入有效的服务器地址", "error");
-        addLog("错误", "服务器地址为空");
-        return;
-      }
+  //     if (!serverUrl) {
+  //       updateServerStatus("请输入有效的服务器地址", "error");
+  //       addLog("错误", "服务器地址为空");
+  //       return;
+  //     }
 
-      // 验证服务器URL格式
-      try {
-        new URL(serverUrl);
-      } catch (e) {
-        updateServerStatus("服务器地址格式无效", "error");
-        addLog("错误", `服务器地址格式无效: ${e.message}`);
-        return;
-      }
+  //     // 验证服务器URL格式
+  //     try {
+  //       new URL(serverUrl);
+  //     } catch (e) {
+  //       updateServerStatus("服务器地址格式无效", "error");
+  //       addLog("错误", `服务器地址格式无效: ${e.message}`);
+  //       return;
+  //     }
 
-      // 确保摄像头流已启动
-      if (!cameraManager.isRunning) {
-        updateStatus("正在启动摄像头流...", "warning");
-        cameraManager.startStreaming((frameData) => {
-          // 帧处理回调
-          if (debugMode) {
-            // 调试模式下可以显示帧信息
-          }
-        });
-      }
+  //     // 确保摄像头流已启动
+  //     if (!cameraManager.isRunning) {
+  //       updateStatus("正在启动摄像头流...", "warning");
+  //       cameraManager.startStreaming((frameData) => {
+  //         // 帧处理回调
+  //         if (debugMode) {
+  //           // 调试模式下可以显示帧信息
+  //         }
+  //       });
+  //     }
 
-      await initializeSession(roomId, userId, serverUrl);
-    });
-  }
+  //     await initializeSession(roomId, userId, serverUrl);
+  //   });
+  // }
 
   // 设置静音按钮点击事件
   if (muteButton) {
@@ -503,127 +503,352 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // 初始化WebRTC会话
+  // 初始化会议会话
   async function initializeSession(roomId, userId, serverUrl) {
+    console.log(
+      `初始化会议会话: 房间=${roomId}, 用户=${userId}, 服务器=${serverUrl}`
+    );
+    updateStatus("正在初始化会议...", "warning");
+
+    if (!cameraManager) {
+      updateStatus("摄像头管理器未初始化", "error");
+      return;
+    }
+
+    if (!webrtcManager) {
+      updateStatus("WebRTC管理器未初始化", "error");
+      return;
+    }
+
+    // 初始化WebRTC连接
+    webrtcManager.init(userId, serverUrl);
+
     // 确保摄像头流已启动
     if (!cameraManager.isRunning) {
-      updateStatus("正在启动摄像头流...", "warning");
+      updateStatus("initializeSession-正在启动摄像头流...", "warning");
       cameraManager.startStreaming((frameData) => {
         // 帧处理回调
-        if (debugMode) {
-          // 调试模式下可以显示帧信息
+        if (frameData && webrtcManager) {
+          const { colorImageData, pointCloudData } = frameData;
+
+          // 替换错误的sendFrame调用
+          // 发送颜色帧到远程Peer - 不需要手动处理，WebRTC会自动传输媒体流
+          // 确保Canvas流已经被更新到WebRTC
+          if (colorImageData && window.localStream && !webrtcManager.pointCloudMode) {
+            // 更新媒体流由cameraManager.updateMediaStream负责
+            // 此处不需要手动处理
+          }
+
+          // 如果启用了点云模式并且有点云数据，则发送点云数据
+          if (webrtcManager.pointCloudMode && pointCloudData) {
+            const { positions, colors } = pointCloudData;
+            webrtcManager.sendPointCloudData(positions, colors);
+          }
         }
       });
     }
 
-    try {
-      updateStatus("正在初始化会话...", "warning");
-      updateServerStatus(`正在连接到 ${serverUrl}`, "warning");
-      addLog(
-        "系统",
-        `正在初始化WebRTC会话，房间ID: ${roomId}, 用户ID: ${userId}`
-      );
+    // 注册回调函数
+    webrtcManager.setCallbacks({
+      onConnected: () => {
+        console.log("WebRTC连接已建立");
+        updateStatus("已连接到会议", "success");
+      },
+      onDisconnected: () => {
+        console.log("WebRTC连接已断开");
+        updateStatus("与会议的连接已断开", "error");
+      },
+      onRemoteStream: (remoteUserId, stream) => {
+        console.log(`[App] WGD:onRemoteStream, 收到来自 ${remoteUserId} 的流:`, {
+          streamId: stream.id,
+          tracks: stream.getTracks().map((track) => ({
+            kind: track.kind,
+            label: track.label,
+            enabled: track.enabled,
+            muted: track.muted,
+            readyState: track.readyState,
+          })),
+        });
 
-      // 禁用连接按钮，避免重复点击
-      if (connectButton) {
-        connectButton.disabled = true;
-      }
+        // 创建或获取远程用户的canvas元素
+        const remoteCanvas = window.createRemoteVideoElement(remoteUserId);
 
-      // 初始化WebRTC管理器
-      webrtcManager.init(userId, serverUrl);
-
-      // 获取本地媒体流
-      updateStatus("正在获取媒体流...", "warning");
-      addLog("系统", "获取本地媒体流中...");
-      const localStream = await webrtcManager.getLocalStream(cameraManager);
-
-      if (!localStream) {
-        updateStatus("无法获取媒体流，请检查摄像头和麦克风权限", "error");
-        addLog("错误", "无法获取本地媒体流");
-        if (connectButton) {
-          connectButton.disabled = false;
+        if (!remoteCanvas) {
+          console.error(`[App] 为用户 ${remoteUserId} 创建Canvas元素失败`);
+          return;
         }
-        return;
-      }
 
-      addLog("系统", "成功获取本地媒体流");
+        console.log(`[App] 成功创建/获取Canvas元素:`, {
+          canvasId: remoteCanvas.id,
+          width: remoteCanvas.width,
+          height: remoteCanvas.height,
+          display: remoteCanvas.style.display,
+          parentElement: remoteCanvas.parentElement?.id,
+        });
 
-      // 启用音频控制按钮
-      if (muteButton) {
-        muteButton.disabled = false;
-      }
+        // 创建一个离屏视频元素来播放流
+        const videoElement = document.createElement("video");
+        videoElement.srcObject = stream;
+        videoElement.autoplay = true;
+        videoElement.muted = true; // 视频元素静音，避免重复播放音频
+        videoElement.id = `video_${remoteUserId}`;
+        videoElement.style.display = "block"; // 隐藏视频元素
+        remoteCanvas.appendChild(videoElement);
 
-      if (volumeSlider) {
-        volumeSlider.disabled = false;
-      }
+        // 添加视频流状态监听
+        stream.getTracks().forEach((track) => {
+          track.onended = () => {
+            console.log(`[App] 视频轨道结束 (${remoteUserId}):`, {
+              kind: track.kind,
+              label: track.label,
+            });
+          };
 
-      if (cameraToggle) {
-        cameraToggle.disabled = false;
-      }
+          track.onmute = () => {
+            console.log(`[App] 视频轨道被静音 (${remoteUserId}):`, {
+              kind: track.kind,
+              label: track.label,
+            });
+          };
 
-      // 设置回调函数
-      webrtcManager.setCallbacks({
-        onConnected: () => {
-          updateStatus("已连接到远程用户", "success");
-          addLog("连接", "已成功连接到远程用户");
+          track.onunmute = () => {
+            console.log(`[App] 视频轨道取消静音 (${remoteUserId}):`, {
+              kind: track.kind,
+              label: track.label,
+            });
+          };
+        });
 
-          // 更新参与者数量，触发布局更新
-          if (window.updateLayout) {
-            window.updateLayout(2); // 默认为2个参与者(本地+远程)
+        console.log(`[App] 创建视频元素:`, {
+          videoId: videoElement.id,
+          readyState: videoElement.readyState,
+          srcObject: !!videoElement.srcObject,
+          currentTime: videoElement.currentTime,
+          duration: videoElement.duration,
+          paused: videoElement.paused,
+          ended: videoElement.ended,
+        });
+
+        // 获取Canvas的上下文
+        const ctx = remoteCanvas.getContext("2d");
+
+        // 当视频开始播放时，开始绘制到Canvas
+        videoElement.addEventListener("playing", () => {
+          console.log(`[App] 视频开始播放 (${remoteUserId}):`, {
+            videoWidth: videoElement.videoWidth,
+            videoHeight: videoElement.videoHeight,
+            readyState: videoElement.readyState,
+            currentTime: videoElement.currentTime,
+            duration: videoElement.duration,
+            paused: videoElement.paused,
+            ended: videoElement.ended,
+          });
+
+          // 设置Canvas尺寸以匹配视频
+          remoteCanvas.width = videoElement.videoWidth;
+          remoteCanvas.height = videoElement.videoHeight;
+
+          console.log(`[App] 更新Canvas尺寸:`, {
+            canvasId: remoteCanvas.id,
+            newWidth: remoteCanvas.width,
+            newHeight: remoteCanvas.height,
+          });
+
+          // 确保Canvas在DOM中可见
+          const videoWrapper = document.getElementById(
+            `remoteVideo_${remoteUserId}_wrapper`
+          );
+          if (videoWrapper) {
+            videoWrapper.style.display = "block";
+            remoteCanvas.style.display = "block";
+            console.log(`[App] 设置视频包装器可见:`, {
+              wrapperId: videoWrapper.id,
+              wrapperDisplay: videoWrapper.style.display,
+              canvasDisplay: remoteCanvas.style.display,
+            });
           }
-        },
-        onDisconnected: () => {
-          updateStatus("与远程用户断开连接");
-          addLog("连接", "与远程用户断开连接");
 
-          // 更新参与者数量，触发布局更新
-          if (window.updateLayout) {
-            window.updateLayout(1); // 只有本地参与者
+          // 定期将视频帧绘制到Canvas
+          function drawFrame() {
+            if (videoElement.paused || videoElement.ended) {
+              console.log(`[App] 视频已暂停或结束 (${remoteUserId}):`, {
+                paused: videoElement.paused,
+                ended: videoElement.ended,
+                currentTime: videoElement.currentTime,
+                duration: videoElement.duration,
+                readyState: videoElement.readyState,
+              });
+              return;
+            }
+
+            // 将视频帧绘制到Canvas
+            ctx.drawImage(
+              videoElement,
+              0,
+              0,
+              remoteCanvas.width,
+              remoteCanvas.height
+            );
+
+            // 每30帧输出一次状态
+            if (window._frameCount === undefined) window._frameCount = 0;
+            if (window._frameCount++ % 30 === 0) {
+              console.log(`[App] 绘制视频帧到Canvas (${remoteUserId}):`, {
+                frameCount: window._frameCount,
+                currentTime: videoElement.currentTime,
+                duration: videoElement.duration,
+                readyState: videoElement.readyState,
+                canvasWidth: remoteCanvas.width,
+                canvasHeight: remoteCanvas.height,
+              });
+            }
+
+            // 继续绘制下一帧
+            requestAnimationFrame(drawFrame);
           }
 
-          // 重新启用连接按钮
-          if (connectButton) {
-            connectButton.disabled = false;
+          // 开始绘制
+          console.log(`[App] 开始渲染循环 (${remoteUserId})`);
+          drawFrame();
+        });
+
+        // 保存videoElement的引用，以便后续清理
+        window.videoElements = window.videoElements || {};
+        window.videoElements[remoteUserId] = videoElement;
+
+        // 添加错误处理
+        videoElement.onerror = (error) => {
+          console.error(`[App] 视频元素错误 (${remoteUserId}):`, {
+            error: error,
+            readyState: videoElement.readyState,
+            currentTime: videoElement.currentTime,
+            duration: videoElement.duration,
+            paused: videoElement.paused,
+            ended: videoElement.ended,
+          });
+        };
+
+        // 添加加载状态日志
+        videoElement.onloadedmetadata = () => {
+          console.log(`[App] 视频元数据已加载 (${remoteUserId}):`, {
+            width: videoElement.videoWidth,
+            height: videoElement.videoHeight,
+            duration: videoElement.duration,
+            readyState: videoElement.readyState,
+            currentTime: videoElement.currentTime,
+            paused: videoElement.paused,
+            ended: videoElement.ended,
+          });
+        };
+
+        // 添加播放状态变化监听
+        videoElement.addEventListener("play", () => {
+          console.log(`[App] 视频开始播放 (${remoteUserId})`);
+        });
+
+        videoElement.addEventListener("pause", () => {
+          console.log(`[App] 视频暂停 (${remoteUserId})`);
+        });
+
+        videoElement.addEventListener("ended", () => {
+          console.log(`[App] 视频结束 (${remoteUserId})`);
+        });
+      },
+      onError: (error, userId) => {
+        console.error(`WebRTC错误 (${userId || "未知"}):`, error);
+        updateStatus(`连接错误: ${error}`, "error");
+      },
+      onUserJoined: (userId) => { // TODO: 这里多调用了一遍，重复了
+        console.log(`用户 ${userId} 加入了会议`);
+        // 更新参与者计数
+        if (window.updateParticipantCount) {
+          window.updateParticipantCount();
+        }
+      },
+      onUserLeft: (userId) => {
+        console.log(`用户 ${userId} 离开了会议`);
+
+        // 清理视频元素
+        if (window.videoElements && window.videoElements[userId]) {
+          const videoElement = window.videoElements[userId];
+          if (videoElement && videoElement.parentNode) {
+            videoElement.pause();
+            videoElement.srcObject = null;
+            videoElement.parentNode.removeChild(videoElement);
           }
-        },
-        onRemoteStream: (stream) => {
-          console.log("收到远程媒体流");
-          addLog("媒体", "收到远程媒体流");
+          delete window.videoElements[userId];
+        }
 
-          // 更新远程用户信息
-          const remoteUserInfo = document.getElementById("remoteUserInfo");
-          if (remoteUserInfo) {
-            remoteUserInfo.textContent =
-              webrtcManager.remoteUserId || "远程用户";
-          }
+        // 移除远程视频元素
+        window.removeRemoteVideoElement(userId);
 
-          // 远程视频元素在WebRTCManager中处理
-        },
-        onError: (error) => {
-          console.error("WebRTC错误:", error);
-          updateStatus(`连接错误: ${error.message}`, "error");
-          addLog("错误", `WebRTC错误: ${error.message}`);
+        // 更新参与者计数
+        if (window.updateParticipantCount) {
+          window.updateParticipantCount();
+        }
+      },
+    });
 
-          // 重新启用连接按钮
-          if (connectButton) {
-            connectButton.disabled = false;
-          }
-        },
-      });
+    // 加入房间
+    webrtcManager.joinRoom(roomId);
 
-      // 加入房间
-      webrtcManager.joinRoom(roomId);
+    try {
+      // 注册摄像头的帧更新回调，将数据传给WebRTC 已经打开过了
+      // cameraManager.startStreaming((frameData) => {
+      //   if (frameData && webrtcManager) {
+      //     const { colorImageData, pointCloudData } = frameData;
 
-      updateStatus(`正在连接到房间 ${roomId}...`, "warning");
-      addLog("系统", `已发送加入房间请求: ${roomId}`);
+      //     // 发送颜色帧到远程Peer
+      //     if (colorImageData) {
+      //       webrtcManager.sendFrame(colorImageData);
+      //     }
+
+      //     // 如果启用了点云模式并且有点云数据，则发送点云数据
+      //     if (webrtcManager.pointCloudMode && pointCloudData) {
+      //       const { positions, colors } = pointCloudData;
+      //       webrtcManager.sendPointCloudData(positions, colors);
+      //     }
+      //   }
+      // });
+
+      // 获取本地媒体流以用于WebRTC
+      await webrtcManager.getLocalStream(cameraManager);
+
+      // 设置Kinect视图模式处理(如果支持)
+      // setupViewModeHandler();
+
+      // 设置点云数据传输(如果需要)
+      setupPointCloudDataTransfer();
+
+      // 设置全局通知函数，用于通知远程Peer模式变更 代码重复了，删除这段
+      // window.notifyRemoteModeChange = (mode) => {
+      //   if (webrtcManager) {
+      //     webrtcManager.sendViewModeChange(mode);
+      //   }
+      // };
+
+      // 设置全局回调函数，用于接收远程点云数据
+      // TODO: 这里确实有 userid 信息，但是处理的不对吧，没这样的函数
+      window.handleRemotePointCloudData = (data, fromUserId) => {
+        console.log(
+          `收到来自 ${fromUserId} 的点云数据: ${data.pointCount} 个点`
+        );
+
+        // 找到对应用户的Canvas
+        const remoteCanvas = document.getElementById(
+          `remoteCanvas_${fromUserId}`
+        );
+        if (remoteCanvas && cameraManager) {
+          // 使用Camera Manager渲染点云
+          cameraManager.renderPointCloudData(data, remoteCanvas);
+        }
+      };
+
+      // 全局导出WebRTC管理器，供其他脚本使用
+      window.webrtcManager = webrtcManager;
     } catch (error) {
-      console.error("初始化会话失败:", error);
-      updateStatus(`初始化会话失败: ${error.message}`, "error");
-      addLog("错误", `初始化会话失败: ${error.message}`);
-
-      if (connectButton) {
-        connectButton.disabled = false;
-      }
+      console.error("初始化会话时出错:", error);
+      updateStatus(`初始化失败: ${error.message}`, "error");
     }
   }
 
@@ -642,10 +867,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  // 全局函数：当媒体流更新时通知WebRTC
+  window.notifyStreamUpdated = function() {
+    if (webrtcManager && window.localStream) {
+      addLog("系统", "本地媒体流已更新，正在刷新WebRTC连接");
+      console.log("[App] 本地媒体流已更新，调用combineStreams更新WebRTC连接");
+      // 使用WebRTC Manager的combineStreams方法更新所有连接的媒体流
+      webrtcManager.combineStreams();
+    } else {
+      console.error("[App] 无法更新媒体流: webrtcManager或localStream不可用");
+    }
+  };
+
   // 全局函数：处理远程模式变更（给 Mac 端用的;不出错 Kinect 不会收到 Mac 的请求）
-  window.handleRemoteViewModeChange = function (mode) {
+  // TODO: 这没有对 userid 做处理，渲染到哪去了
+  window.handleRemoteViewModeChange = function (mode, fromUserId) {
     addLog("系统", `远程用户请求切换到${mode}模式`);
-    console.log(`[App] 远程用户请求切换到${mode}模式`);
+    console.log(`用户 ${fromUserId} 切换到 ${mode} 模式`);
 
     // 检查摄像头管理器是否可用
     if (!cameraManager) {
@@ -780,7 +1018,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               "[App] 收到点云数据但当前不是点云模式，自动切换到点云模式"
             );
             // 通过全局函数切换模式，确保界面也会更新
-            window.handleRemoteViewModeChange("pointCloud");
+            window.handleRemoteViewModeChange("pointCloud", userIdInput);
           }
 
           console.log("[App] 开始处理点云数据");
@@ -914,66 +1152,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         addLog("系统", "已为现有连接创建点云数据通道");
       }
     }
-
-    // 添加全局测试函数来分析点云状态
-    window.debugPointCloud = function () {
-      console.log("[App] 执行点云调试函数");
-      const status = {
-        cameraManager: {
-          viewMode: cameraManager.standardCamera.viewMode,
-          pointCloudActive: cameraManager.pointCloudEnabled,
-          hasPointCloudObject: !!cameraManager.pointCloud,
-          animationRunning: !!cameraManager.animationFrameId,
-          receivedFramesCount: cameraManager.receivedFramesCount || 0,
-          lastReceiveTime: cameraManager.lastReceivedDataTime || 0,
-        },
-        webrtc: {
-          connected: webrtcManager.isConnected,
-          dataChannelActive: !!webrtcManager.dataChannel,
-          pointCloudMode: webrtcManager.pointCloudMode,
-        },
-        lastSampleData: window._pointCloudSampleData || null,
-        lastReceiveTime: window._lastPointCloudReceiveTime || 0,
-        timeSinceLastFrame: window._lastPointCloudReceiveTime
-          ? Date.now() - window._lastPointCloudReceiveTime + "ms"
-          : "N/A",
-      };
-
-      console.log("[App] 点云调试信息:", status);
-
-      // 尝试手动重启点云动画
-      if (
-        cameraManager.pointCloudEnabled &&
-        !cameraManager.animationFrameId &&
-        cameraManager.pointCloud
-      ) {
-        console.log("[App] 尝试重启点云动画循环");
-        cameraManager.animatePointCloud();
-        return "已尝试重启点云动画循环";
-      }
-
-      return status;
-    };
-
-    // 添加全局测试点云函数，可从控制台调用
-    window.testPointCloud = function () {
-      console.log("[App] 运行点云测试");
-      try {
-        if (cameraManager.standardCamera.viewMode !== "pointCloud") {
-          console.log("[App] 当前不是点云模式，切换到点云模式");
-          cameraManager.standardCamera.setViewMode("pointCloud");
-        } else {
-          console.log("[App] 已处于点云模式，尝试重新初始化渲染");
-          if (cameraManager.animatePointCloud) {
-            cameraManager.animatePointCloud();
-          }
-        }
-        return "点云测试已执行";
-      } catch (error) {
-        console.error("[App] 点云测试失败:", error);
-        return `点云测试失败: ${error.message}`;
-      }
-    };
 
     console.log("[App] 点云数据传输已配置完成");
     addLog("系统", "点云数据传输已配置");

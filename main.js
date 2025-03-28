@@ -33,14 +33,72 @@ io.on('connection', (socket) => {
     console.log(`用户 ${userId} 加入房间 ${roomId}`);
     socket.join(roomId);
     
-    // 通知房间内其他人有新用户加入
-    socket.to(roomId).emit('user-connected', userId);
+    // 获取当前房间内的所有用户
+    const room = io.sockets.adapter.rooms.get(roomId);
+    const usersInRoom = [];
     
-    // 发送加入确认
-    socket.emit('room-joined', {
-      room: roomId,
-      id: userId
-    });
+    if (room) {
+      // 获取房间内的所有socket IDs
+      const socketIds = Array.from(room);
+      
+      // 构建用户ID映射表
+      const userMap = {};
+      const promises = socketIds.map(socketId => {
+        return new Promise(resolve => {
+          const clientSocket = io.sockets.sockets.get(socketId);
+          // 尝试从socket对象中获取用户ID
+          if (clientSocket) {
+            // 如果没有直接的方法获取用户ID，我们可以添加一个属性来跟踪
+            if (!clientSocket.userId) {
+              // 为当前加入的用户设置ID
+              if (socketId === socket.id) {
+                clientSocket.userId = userId;
+              }
+            }
+            
+            if (clientSocket.userId) {
+              userMap[socketId] = clientSocket.userId;
+            }
+          }
+          resolve();
+        });
+      });
+      
+      // 等待所有用户ID查询完成
+      Promise.all(promises).then(() => {
+        // 获取房间内的所有用户ID
+        for (const socketId in userMap) {
+          if (userMap[socketId] && !usersInRoom.includes(userMap[socketId])) {
+            usersInRoom.push(userMap[socketId]);
+          }
+        }
+        
+        // 为当前socket设置用户ID
+        socket.userId = userId;
+        
+        // 通知房间内其他人有新用户加入
+        socket.to(roomId).emit('user-connected', userId);
+        
+        // 发送加入确认，包含房间内所有用户列表
+        socket.emit('room-joined', {
+          room: roomId,
+          id: userId,
+          users: usersInRoom
+        });
+        
+        console.log(`有新用户加入服务器，当前房间 ${roomId} 内的用户:`, usersInRoom);
+      });
+    } else {
+      // 房间不存在或刚刚创建，当前只有一个用户
+      socket.userId = userId;
+      
+      // 发送加入确认，只有当前用户
+      socket.emit('room-joined', {
+        room: roomId,
+        id: userId,
+        users: [userId]
+      });
+    }
     
     // 断开连接时通知其他用户
     socket.on('disconnect', () => {
@@ -50,33 +108,83 @@ io.on('connection', (socket) => {
     
     // 转发信令消息
     socket.on('offer', (offer, targetUserId) => {
-      console.log(`用户 ${userId} 发送offer到房间 ${roomId}`);
-      // 记录offer类型用于调试
-      console.log(`offer类型: ${typeof offer}, 包含类型: ${offer.type ? offer.type : '无'}`);
-      socket.to(roomId).emit('offer', offer, userId);
+      console.log(`用户 ${userId} 发送offer到用户 ${targetUserId}`);
+      
+      // 有特定目标用户时，只向目标用户发送
+      if (targetUserId && targetUserId !== 'undefined' && targetUserId !== 'null') {
+        // 找到目标用户的socket
+        const targetSocket = findSocketByUserId(io, targetUserId);
+        if (targetSocket) {
+          console.log(`定向发送offer到用户 ${targetUserId}`);
+          targetSocket.emit('offer', offer, userId);
+        } else {
+          console.log(`未找到用户 ${targetUserId} 的socket，发送到房间`);
+          socket.to(roomId).emit('offer', offer, userId);
+        }
+      } else {
+        // 广播到整个房间
+        console.log(`广播offer到房间 ${roomId}`);
+        socket.to(roomId).emit('offer', offer, userId);
+      }
     });
     
     socket.on('answer', (answer, targetUserId) => {
-      console.log(`用户 ${userId} 发送answer到房间 ${roomId}`);
-      // 记录answer类型用于调试
-      console.log(`answer类型: ${typeof answer}, 包含类型: ${answer.type ? answer.type : '无'}`);
-      socket.to(roomId).emit('answer', answer, userId);
+      console.log(`用户 ${userId} 发送answer到用户 ${targetUserId}`);
+      
+      // 有特定目标用户时，只向目标用户发送
+      if (targetUserId && targetUserId !== 'undefined' && targetUserId !== 'null') {
+        // 找到目标用户的socket
+        const targetSocket = findSocketByUserId(io, targetUserId);
+        if (targetSocket) {
+          console.log(`定向发送answer到用户 ${targetUserId}`);
+          targetSocket.emit('answer', answer, userId);
+        } else {
+          console.log(`未找到用户 ${targetUserId} 的socket，发送到房间`);
+          socket.to(roomId).emit('answer', answer, userId);
+        }
+      } else {
+        // 广播到整个房间
+        console.log(`广播answer到房间 ${roomId}`);
+        socket.to(roomId).emit('answer', answer, userId);
+      }
     });
     
     socket.on('ice-candidate', (candidate, targetUserId) => {
-      console.log(`用户 ${userId} 发送ICE候选到房间 ${roomId}`);
-      // 记录candidate类型用于调试
-      let candidateStr = '';
-      try {
-        candidateStr = JSON.stringify(candidate).substring(0, 100) + '...';
-      } catch (e) {
-        candidateStr = '无法序列化';
+      console.log(`用户 ${userId} 发送ICE候选到用户 ${targetUserId}`);
+      
+      // 有特定目标用户时，只向目标用户发送
+      if (targetUserId && targetUserId !== 'undefined' && targetUserId !== 'null') {
+        // 找到目标用户的socket
+        const targetSocket = findSocketByUserId(io, targetUserId);
+        if (targetSocket) {
+          console.log(`定向发送ICE候选到用户 ${targetUserId}`);
+          targetSocket.emit('ice-candidate', candidate, userId);
+        } else {
+          console.log(`未找到用户 ${targetUserId} 的socket，发送到房间`);
+          socket.to(roomId).emit('ice-candidate', candidate, userId);
+        }
+      } else {
+        // 广播到整个房间
+        console.log(`广播ICE候选到房间 ${roomId}`);
+        socket.to(roomId).emit('ice-candidate', candidate, userId);
       }
-      console.log(`candidate简略内容: ${candidateStr}`);
-      socket.to(roomId).emit('ice-candidate', candidate, userId);
     });
   });
 });
+
+// 通过用户ID查找socket
+function findSocketByUserId(io, userId) {
+  let targetSocket = null;
+  
+  // 遍历所有socket
+  io.sockets.sockets.forEach(socket => {
+    if (socket.userId === userId) {
+      targetSocket = socket;
+    }
+  });
+  
+  return targetSocket;
+}
 
 // 启动信令服务器
 const PORT = 3001;
