@@ -32,3 +32,9 @@ logs
 # 临时文件
 .tmp/
 .temp/ 
+
+# 大文件
+renderer/assets/videos
+
+# 库文件
+kinect-azure/
