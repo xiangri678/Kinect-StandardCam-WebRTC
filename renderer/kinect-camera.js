@@ -361,6 +361,7 @@ class KinectCameraManager {
         synchronized_images_only: true,
         include_color_to_depth: true,
         flip_BGRA_to_RGBA: true,
+        // include_body_index_map: true,
       });
 
       // 获取深度模式范围
@@ -375,6 +376,7 @@ class KinectCameraManager {
 
       // 启动监听
       this.kinect.startListening((data) => {
+        window.statsKinect.update();
         if (this.viewMode === "pointCloud") {
           this.processKinectFrameWithPointCloud(data);
         } else {
@@ -417,7 +419,6 @@ class KinectCameraManager {
       this.colorCanvas.height = data.colorImageFrame.height;
     }
 
-    console.log("当前视图模式：", viewMode);
     // 创建 ImageData 并渲染到 Canvas
     if (viewMode === "color") {
       const imageData = this.colorCtx.createImageData(
@@ -428,7 +429,6 @@ class KinectCameraManager {
       // 清除Canvas，然后渲染彩色图像
       this.colorCtx.clearRect(0, 0, this.colorCanvas.width, this.colorCanvas.height);
       this.colorCtx.putImageData(imageData, 0, 0);
-      console.log("processKinectFrame 放了一帧 color 图");
     } else if (viewMode === "depth") {
       // 先清除整个Canvas
       this.colorCtx.clearRect(0, 0, this.colorCanvas.width, this.colorCanvas.height);
@@ -446,7 +446,6 @@ class KinectCameraManager {
           data.depthImageFrame,
           this.depthModeRange
         );
-        console.log("渲染深度图完成");
       }
     } else if (viewMode === "infrared") {
       // 先清除整个Canvas
@@ -457,7 +456,6 @@ class KinectCameraManager {
           data.irImageFrame.width,
           data.irImageFrame.height
         );
-        console.log("创建红外图");
       }
       if (infraredImageData) {
         this.renderIrFrameAsGreyScale(
@@ -465,7 +463,6 @@ class KinectCameraManager {
           infraredImageData,
           data.irImageFrame
         );
-        console.log("渲染红外图完成");
       }
     }
 
@@ -641,15 +638,15 @@ class KinectCameraManager {
       this.pointCloud = new THREE.Points(geometry, material);
       this.threeJsScene.add(this.pointCloud);
 
-      // 添加一个红色网格作为参考
-      const gridHelper = new THREE.GridHelper(1000, 10, 0xff0000, 0xffffff);
-      this.threeJsScene.add(gridHelper);
+      // // 添加一个红色网格作为参考
+      // const gridHelper = new THREE.GridHelper(1000, 10, 0xff0000, 0xffffff);
+      // this.threeJsScene.add(gridHelper);
 
-      // 添加三个坐标轴
-      const axesHelper = new THREE.AxesHelper(500);
-      this.threeJsScene.add(axesHelper);
+      // // 添加三个坐标轴
+      // const axesHelper = new THREE.AxesHelper(500);
+      // this.threeJsScene.add(axesHelper);
 
-      console.log("添加了参考网格和坐标轴");
+      // console.log("添加了参考网格和坐标轴");
 
       // 更新WebRTC的媒体流以使用新的Canvas
       this.updateMediaStream();
@@ -719,68 +716,68 @@ class KinectCameraManager {
         // 因为WebRTC依赖于视频轨道来保持连接
 
         // 显示一个静态图像，告知用户当前是点云模式
-        // if (this.colorCtx) {
-        //   // 绘制背景
-        //   this.colorCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
-        //   this.colorCtx.fillRect(
-        //     0,
-        //     0,
-        //     this.colorCanvas.width,
-        //     this.colorCanvas.height
-        //   );
+        if (this.colorCtx) {
+          // 绘制背景
+          this.colorCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
+          this.colorCtx.fillRect(
+            0,
+            0,
+            this.colorCanvas.width,
+            this.colorCanvas.height
+          );
 
-        //   // 绘制文本
-        //   this.colorCtx.font = "24px Arial";
-        //   this.colorCtx.fillStyle = "#ffffff";
-        //   this.colorCtx.textAlign = "center";
-        //   this.colorCtx.fillText(
-        //     "点云模式已激活",
-        //     this.colorCanvas.width / 2,
-        //     this.colorCanvas.height / 2 - 30
-        //   );
-        //   this.colorCtx.fillStyle = "#4CAF50";
-        //   this.colorCtx.font = "20px Arial";
-        //   this.colorCtx.fillText(
-        //     "正在通过数据通道传输点云数据...",
-        //     this.colorCanvas.width / 2,
-        //     this.colorCanvas.height / 2 + 10
-        //   );
+          // 绘制文本
+          this.colorCtx.font = "24px Arial";
+          this.colorCtx.fillStyle = "#ffffff";
+          this.colorCtx.textAlign = "center";
+          this.colorCtx.fillText(
+            "点云模式已激活",
+            this.colorCanvas.width / 2,
+            this.colorCanvas.height / 2 - 30
+          );
+          this.colorCtx.fillStyle = "#4CAF50";
+          this.colorCtx.font = "20px Arial";
+          this.colorCtx.fillText(
+            "正在通过数据通道传输点云数据...",
+            this.colorCanvas.width / 2,
+            this.colorCanvas.height / 2 + 10
+          );
 
-        //   // 绘制一个旋转的3D图标
-        //   const centerX = this.colorCanvas.width / 2;
-        //   const centerY = this.colorCanvas.height / 2 + 60;
-        //   const size = 40;
-        //   const angle = (Date.now() / 1000) % (Math.PI * 2);
+          // 绘制一个旋转的3D图标
+          const centerX = this.colorCanvas.width / 2;
+          const centerY = this.colorCanvas.height / 2 + 60;
+          const size = 40;
+          const angle = (Date.now() / 1000) % (Math.PI * 2);
 
-        //   this.colorCtx.save();
-        //   this.colorCtx.translate(centerX, centerY);
-        //   this.colorCtx.rotate(angle);
+          this.colorCtx.save();
+          this.colorCtx.translate(centerX, centerY);
+          this.colorCtx.rotate(angle);
 
-        //   // 绘制一个简单的立方体
-        //   this.colorCtx.strokeStyle = "#4CAF50";
-        //   this.colorCtx.lineWidth = 2;
-        //   this.colorCtx.beginPath();
-        //   this.colorCtx.rect(-size / 2, -size / 2, size, size);
-        //   this.colorCtx.stroke();
+          // 绘制一个简单的立方体
+          this.colorCtx.strokeStyle = "#4CAF50";
+          this.colorCtx.lineWidth = 2;
+          this.colorCtx.beginPath();
+          this.colorCtx.rect(-size / 2, -size / 2, size, size);
+          this.colorCtx.stroke();
 
-        //   this.colorCtx.beginPath();
-        //   this.colorCtx.moveTo(-size / 2, -size / 2);
-        //   this.colorCtx.lineTo(-size / 2 + size / 4, -size / 2 - size / 4);
-        //   this.colorCtx.lineTo(size / 2 + size / 4, -size / 2 - size / 4);
-        //   this.colorCtx.lineTo(size / 2, -size / 2);
-        //   this.colorCtx.closePath();
-        //   this.colorCtx.stroke();
+          this.colorCtx.beginPath();
+          this.colorCtx.moveTo(-size / 2, -size / 2);
+          this.colorCtx.lineTo(-size / 2 + size / 4, -size / 2 - size / 4);
+          this.colorCtx.lineTo(size / 2 + size / 4, -size / 2 - size / 4);
+          this.colorCtx.lineTo(size / 2, -size / 2);
+          this.colorCtx.closePath();
+          this.colorCtx.stroke();
 
-        //   this.colorCtx.beginPath();
-        //   this.colorCtx.moveTo(size / 2, -size / 2);
-        //   this.colorCtx.lineTo(size / 2 + size / 4, -size / 2 - size / 4);
-        //   this.colorCtx.lineTo(size / 2 + size / 4, size / 2 - size / 4);
-        //   this.colorCtx.lineTo(size / 2, size / 2);
-        //   this.colorCtx.closePath();
-        //   this.colorCtx.stroke();
+          this.colorCtx.beginPath();
+          this.colorCtx.moveTo(size / 2, -size / 2);
+          this.colorCtx.lineTo(size / 2 + size / 4, -size / 2 - size / 4);
+          this.colorCtx.lineTo(size / 2 + size / 4, size / 2 - size / 4);
+          this.colorCtx.lineTo(size / 2, size / 2);
+          this.colorCtx.closePath();
+          this.colorCtx.stroke();
 
-        //   this.colorCtx.restore();
-        // }
+          this.colorCtx.restore();
+        }
 
         // 确保存在一个媒体流
         if (!window.localStream) {
@@ -913,6 +910,11 @@ class KinectCameraManager {
         console.log("退出点云模式，停止动画循环");
         this.animationFrameId = null;
         return;
+      }
+
+      // 更新渲染性能统计
+      if (window.statsRenderer) {
+        window.statsRenderer.update();
       }
 
       // 如果点云已经被清理，停止动画循环
@@ -1125,18 +1127,19 @@ class KinectCameraManager {
     // 请求渲染一帧
     if (this.threeJsRenderer && this.threeJsScene && this.threeJsCamera) {
       this.threeJsRenderer.render(this.threeJsScene, this.threeJsCamera);
-      console.log("[Kinect] 本地渲染了一帧点云");
+      // console.log("[Kinect] 本地渲染了一帧点云");
     }
 
-    if (
-      lastTransferPointCloudDataTime &&
-      Date.now() - lastTransferPointCloudDataTime < 1000
-    ) {
-      console.log("[Kinect] 激进的节流：每1000ms最多更新一次，跳过发送本帧");
-      return;
-    }
-    lastTransferPointCloudDataTime = Date.now(); // 激进的降采样：只保留部分点
-
+    // if (
+    //   lastTransferPointCloudDataTime &&
+    //   Date.now() - lastTransferPointCloudDataTime < 1000
+    // ) {
+    //   console.log("[Kinect] 激进的节流：每1000ms最多更新一次，跳过发送本帧");
+    //   return;
+    // }
+    // lastTransferPointCloudDataTime = Date.now();
+    
+    // 激进的降采样：只保留部分点
     const sampleRate = 36; // 采样率 // 计算点的数量而不是直接用数组长度
     const numOriginalPoints = depthData.length / 2; // 深度数据中的点数
     const numSampledPoints = Math.floor(numOriginalPoints / sampleRate); // 采样后的点数
@@ -1549,7 +1552,6 @@ class KinectCameraManager {
     
     // 在居中位置绘制图像
     ctx.putImageData(canvasImageData, offsetX, offsetY);
-    console.log("renderDepthFrameAsBlueToRed 放了一帧 depth 图");
   };
 
   map = (value, inputMin, inputMax, outputMin, outputMax) => {
@@ -1620,7 +1622,7 @@ class KinectCameraManager {
       pixelArray[i + 3] = 0xff;
       incomingPixelIndex += 2;
     }
-    
+
     imageFrame.height = this.colorCanvas.height;
     imageFrame.width = this.colorCanvas.height;
     // 计算偏移量以居中显示
@@ -1633,7 +1635,6 @@ class KinectCameraManager {
     
     // 在居中位置绘制图像
     ctx.putImageData(canvasImageData, offsetX, offsetY);
-    console.log("renderIrFrameAsGreyScale 放了一帧 ir 图");
   };
 }
 

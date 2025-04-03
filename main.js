@@ -223,9 +223,6 @@ function createWindow() {
   
   // 加载应用的 login.html
   mainWindow.loadFile(indexPath);
-
-  // 打开开发者工具，用于调试
-  mainWindow.webContents.openDevTools();
   
   // 监听页面加载状态
   mainWindow.webContents.on('did-finish-load', () => {
@@ -270,7 +267,7 @@ function createClientWindow() {
   clientWindow.loadFile(indexPath);
   
   // 打开开发者工具
-  clientWindow.webContents.openDevTools();
+  // clientWindow.webContents.openDevTools();
   
   // 窗口准备好后自动填充连接信息
   clientWindow.webContents.on('did-finish-load', () => {

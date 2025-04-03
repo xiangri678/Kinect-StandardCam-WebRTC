@@ -716,15 +716,15 @@ class CameraManager {
       this.threeJsScene.add(this.pointCloud);
       console.log('点云已添加到场景');
             
-      // 添加一个红色网格作为参考
-      const gridHelper = new THREE.GridHelper(1000, 10, 0xff0000, 0xffffff);
-      this.threeJsScene.add(gridHelper);
+      // // 添加一个红色网格作为参考
+      // const gridHelper = new THREE.GridHelper(1000, 10, 0xff0000, 0xffffff);
+      // this.threeJsScene.add(gridHelper);
       
-      // 添加三个坐标轴
-      const axesHelper = new THREE.AxesHelper(500);
-      this.threeJsScene.add(axesHelper);
+      // // 添加三个坐标轴
+      // const axesHelper = new THREE.AxesHelper(500);
+      // this.threeJsScene.add(axesHelper);
       
-      console.log('添加了参考网格和坐标轴');
+      // console.log('添加了参考网格和坐标轴');
       
       // 开始渲染循环
       console.log('初始化完成，开始点云渲染循环');
@@ -801,66 +801,97 @@ class CameraManager {
   animatePointCloud() {
     const THREE = window.THREE;
     if (!THREE) {
-      console.error('[Camera] 点云渲染失败: THREE.js未加载');
+      console.error("[Camera] 点云渲染失败: THREE.js未加载");
       return;
     }
-    
+
     if (!this.threeJsRenderer || !this.threeJsScene || !this.threeJsCamera) {
-      console.error('[Camera] 无法启动点云动画循环：渲染器、场景或摄像机未初始化');
-      console.log('[Camera] 渲染器状态:', this.threeJsRenderer ? '已创建' : '未创建');
-      console.log('[Camera] 场景状态:', this.threeJsScene ? '已创建' : '未创建'); 
-      console.log('[Camera] 相机状态:', this.threeJsCamera ? '已创建' : '未创建');
+      console.error(
+        "[Camera] 无法启动点云动画循环：渲染器、场景或摄像机未初始化"
+      );
+      console.log(
+        "[Camera] 渲染器状态:",
+        this.threeJsRenderer ? "已创建" : "未创建"
+      );
+      console.log(
+        "[Camera] 场景状态:",
+        this.threeJsScene ? "已创建" : "未创建"
+      );
+      console.log(
+        "[Camera] 相机状态:",
+        this.threeJsCamera ? "已创建" : "未创建"
+      );
       return;
     }
-    
+
     // 避免重复启动
     if (this.animationFrameId) {
-      console.log('[Camera] 点云动画循环已在运行中，不需要重复启动, ID:', this.animationFrameId);
+      console.log(
+        "[Camera] 点云动画循环已在运行中，不需要重复启动, ID:",
+        this.animationFrameId
+      );
       return;
     }
-    
-    console.log('[Camera] 启动点云渲染循环');
-    
+
+    console.log("[Camera] 启动点云渲染循环");
+
     // 跟踪帧数以便调试
     this.frameCount = 0;
     this.animationStartTime = Date.now();
     this.lastFrameTime = Date.now();
-    
+
     // 设置一个正常帧率的基准
     const targetFrameRate = 60;
     const minFrameTime = 1000 / targetFrameRate;
-    
+
     // 定义动画函数
     const animate = () => {
       // 安全检查 - 如果退出点云模式，则停止动画循环
-      if (this.viewMode !== 'pointCloud') {
-        console.log('[Camera] 退出点云模式，停止动画循环');
+      if (this.viewMode !== "pointCloud") {
+        console.log("[Camera] 退出点云模式，停止动画循环");
         this.animationFrameId = null;
         return;
       }
-      
+
+      // 更新渲染性能统计
+      if (window.statsRenderer) {
+        window.statsRenderer.update();
+      }
+
       // 如果点云已经被清理，停止动画循环
-      if (!this.pointCloud || !this.threeJsRenderer || !this.threeJsScene || !this.threeJsCamera) {
-        console.error('[Camera] 点云渲染中断: 点云或渲染组件已被清理');
-        console.log('[Camera] 点云状态:', this.pointCloud ? '存在' : '已清理');
-        console.log('[Camera] 渲染器状态:', this.threeJsRenderer ? '存在' : '已清理');
+      if (
+        !this.pointCloud ||
+        !this.threeJsRenderer ||
+        !this.threeJsScene ||
+        !this.threeJsCamera
+      ) {
+        console.error("[Camera] 点云渲染中断: 点云或渲染组件已被清理");
+        console.log("[Camera] 点云状态:", this.pointCloud ? "存在" : "已清理");
+        console.log(
+          "[Camera] 渲染器状态:",
+          this.threeJsRenderer ? "存在" : "已清理"
+        );
         this.animationFrameId = null;
         return;
       }
-      
+
       // 计算帧时间
       const now = Date.now();
       const frameDelta = now - this.lastFrameTime;
-      
+
       // 跟踪帧
       this.frameCount++;
       if (this.frameCount % 10 === 0) {
-        console.log(`[Camera] 点云渲染帧: ${this.frameCount}, 帧间隔: ${frameDelta}ms`);
-        
+        console.log(
+          `[Camera] 点云渲染帧: ${this.frameCount}, 帧间隔: ${frameDelta}ms`
+        );
+
         // 验证点云和场景状态
-        console.log(`[Camera] 点云状态检查: 点数=${this.pointCloud.geometry.attributes.position.count}, 场景子对象数=${this.threeJsScene.children.length}`);
+        console.log(
+          `[Camera] 点云状态检查: 点数=${this.pointCloud.geometry.attributes.position.count}, 场景子对象数=${this.threeJsScene.children.length}`
+        );
       }
-      
+
       // 如果帧时间太短，延迟执行以控制帧率
       // if (frameDelta < minFrameTime) {
       //   console.log(`[Camera] 帧间隔过短: ${frameDelta}ms < ${minFrameTime}ms, 延迟执行`);
@@ -870,74 +901,87 @@ class CameraManager {
       //   }, minFrameTime - frameDelta);
       //   return;
       // }
-      
+
       // 继续执行动画帧
       this.animationFrameId = requestAnimationFrame(animate);
       this.lastFrameTime = now;
-      
+
       try {
         // 检查是否在使用远程点云数据
         if (this.remotePointCloudActive) {
           // 检查是否长时间未收到数据
           const timeSinceLastData = now - this.lastReceivedDataTime;
-          if (timeSinceLastData > 10000) { // 如果超过10秒未收到数据
-            console.warn(`[Camera] 已有${Math.floor(timeSinceLastData/1000)}秒未收到点云数据，点云可能已停止传输`);
-            
-            // 在画面上显示警告
-            if (this.threeJsRenderer) {
-              // 创建临时Canvas显示警告
-              const tempCanvas = document.createElement('canvas');
-              tempCanvas.width = this.pointCloudCanvas.width;
-              tempCanvas.height = this.pointCloudCanvas.height;
-              const ctx = tempCanvas.getContext('2d');
-              
-              // 绘制半透明背景
-              ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-              ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-              
-              // 绘制警告文本
-              ctx.font = '20px Arial';
-              ctx.fillStyle = 'red';
-              ctx.textAlign = 'center';
-              ctx.fillText('点云数据接收中断', tempCanvas.width / 2, tempCanvas.height / 2);
-              ctx.font = '16px Arial';
-              ctx.fillStyle = 'white';
-              ctx.fillText('请检查连接或重新启动应用', tempCanvas.width / 2, tempCanvas.height / 2 + 30);
-              
-              // 创建纹理并显示在场景中
-              const texture = new THREE.CanvasTexture(tempCanvas);
-              const material = new THREE.SpriteMaterial({ map: texture });
-              const sprite = new THREE.Sprite(material);
-              sprite.scale.set(tempCanvas.width, tempCanvas.height, 1);
-              
-              // 添加到场景
-              this.threeJsScene.add(sprite);
-            }
-          }
+          // if (timeSinceLastData > 10000) {
+          //   // 如果超过10秒未收到数据
+          //   console.warn(
+          //     `[Camera] 已有${Math.floor(
+          //       timeSinceLastData / 1000
+          //     )}秒未收到点云数据，点云可能已停止传输`
+          //   );
+
+          //   // 在画面上显示警告
+          //   if (this.threeJsRenderer) {
+          //     // 创建临时Canvas显示警告
+          //     const tempCanvas = document.createElement("canvas");
+          //     tempCanvas.width = this.pointCloudCanvas.width;
+          //     tempCanvas.height = this.pointCloudCanvas.height;
+          //     const ctx = tempCanvas.getContext("2d");
+
+          //     // 绘制半透明背景
+          //     ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+          //     ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+          //     // 绘制警告文本
+          //     ctx.font = "20px Arial";
+          //     ctx.fillStyle = "red";
+          //     ctx.textAlign = "center";
+          //     ctx.fillText(
+          //       "点云数据接收中断",
+          //       tempCanvas.width / 2,
+          //       tempCanvas.height / 2
+          //     );
+          //     ctx.font = "16px Arial";
+          //     ctx.fillStyle = "white";
+          //     ctx.fillText(
+          //       "请检查连接或重新启动应用",
+          //       tempCanvas.width / 2,
+          //       tempCanvas.height / 2 + 30
+          //     );
+
+          //     // 创建纹理并显示在场景中
+          //     const texture = new THREE.CanvasTexture(tempCanvas);
+          //     const material = new THREE.SpriteMaterial({ map: texture });
+          //     const sprite = new THREE.Sprite(material);
+          //     sprite.scale.set(tempCanvas.width, tempCanvas.height, 1);
+
+          //     // 添加到场景
+          //     this.threeJsScene.add(sprite);
+          //   }
+          // }
         }
-        
+
         // 更新控制器
         if (this.threeJsControls) {
           this.threeJsControls.update();
         }
-        
+
         // 渲染场景
         // if (this.frameCount % 10 === 0) {
-          // console.log(`[Camera] 渲染点云帧 ${this.frameCount} - 开始渲染`);
+        // console.log(`[Camera] 渲染点云帧 ${this.frameCount} - 开始渲染`);
         // }
         this.threeJsRenderer.render(this.threeJsScene, this.threeJsCamera);
         // if (this.frameCount % 10 === 0) {
-          // console.log(`[Camera] 渲染点云帧 ${this.frameCount} - 渲染完成`);
+        // console.log(`[Camera] 渲染点云帧 ${this.frameCount} - 渲染完成`);
         // }
       } catch (error) {
         console.error(`[Camera] 点云渲染错误 [帧 ${this.frameCount}]:`, error);
       }
     };
-    
+
     // 启动帧循环
-    console.log('[Camera] 开始第一次点云动画帧请求');
+    console.log("[Camera] 开始第一次点云动画帧请求");
     this.animationFrameId = requestAnimationFrame(animate);
-    console.log('[Camera] 点云动画帧请求已提交, ID:', this.animationFrameId);
+    console.log("[Camera] 点云动画帧请求已提交, ID:", this.animationFrameId);
   }
   
   // 接收点云数据
