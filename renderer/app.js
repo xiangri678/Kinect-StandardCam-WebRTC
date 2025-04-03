@@ -57,15 +57,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 调试模式
   let debugMode = false;
 
-  // 显示/隐藏调试面板
-  if (showDebugButton && debugPanel) {
-    showDebugButton.addEventListener("click", () => {
-      debugMode = !debugMode;
-      debugPanel.classList.toggle("show");
-      showDebugButton.textContent = debugMode ? "隐藏调试信息" : "显示调试信息";
-    });
-  }
-
   // 添加日志
   function addLog(category, message) {
     if (!logsContainer) return;
@@ -257,6 +248,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.webrtcManager = webrtcManager;
     console.log("WebRTCManager创建完成");
     addLog("系统", "WebRTC管理器创建完成");
+    
+    // 初始化网络监控
+    initNetworkMonitoring();
   } catch (error) {
     console.error("初始化WebRTCManager失败:", error);
     updateStatus("WebRTC模块加载失败", "error");
@@ -693,14 +687,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 每30帧输出一次状态
             if (window._frameCount === undefined) window._frameCount = 0;
             if (window._frameCount++ % 30 === 0) {
-              console.log(`[App] 绘制视频帧到Canvas (${remoteUserId}):`, {
-                frameCount: window._frameCount,
-                currentTime: videoElement.currentTime,
-                duration: videoElement.duration,
-                readyState: videoElement.readyState,
-                canvasWidth: remoteCanvas.width,
-                canvasHeight: remoteCanvas.height,
-              });
+              // console.log(`[App] 绘制视频帧到Canvas (${remoteUserId}):`, {
+              //   frameCount: window._frameCount,
+              //   currentTime: videoElement.currentTime,
+              //   duration: videoElement.duration,
+              //   readyState: videoElement.readyState,
+              //   canvasWidth: remoteCanvas.width,
+              //   canvasHeight: remoteCanvas.height,
+              // });
             }
 
             // 继续绘制下一帧
@@ -1155,6 +1149,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     console.log("[App] 点云数据传输已配置完成");
     addLog("系统", "点云数据传输已配置");
+  }
+
+  // 初始化网络监控功能
+  function initNetworkMonitoring() {
+    console.log("初始化网络监控...");
+    
+    // 创建网络统计对象
+    window.statsNetwork = new Stats();
+    window.statsNetwork.dom.style.cssText = '';
+    const statsNetworkContainer = document.createElement('div');
+    statsNetworkContainer.id = 'statsNetwork';
+    document.getElementById('debugPanel')?.appendChild(statsNetworkContainer);
+    statsNetworkContainer?.appendChild(window.statsNetwork.dom);
+    
+    // 设置定时器每秒更新一次网络统计
+    setInterval(async () => {
+      if (window.updateNetworkStats) {
+        await window.updateNetworkStats();
+        if (window.statsNetwork) {
+          window.statsNetwork.update();
+        }
+      }
+    }, 1000);
+    
+    console.log("网络监控已初始化");
+    addLog("系统", "网络监控已初始化");
   }
 
   // 处理页面卸载事件，关闭连接

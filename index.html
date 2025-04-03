@@ -388,6 +388,7 @@
         <div class="connection-status">
             <div class="status-indicator" id="statusIndicator"></div>
             <div class="status-text" id="connectionStatus">正在初始化...</div>
+            <div class="network-status" id="topNetworkStatus" style="margin-left: 15px; font-size: 14px; color: #bbb; background: rgba(255, 255, 255, 0.1); padding: 4px 10px; border-radius: 4px;">网速: -- / --</div>
             <div class="kinect-controls" id="kinectControls">
                 <select id="viewModeSelect" class="mode-select">
                     <option value="color">彩色视频</option>
@@ -432,7 +433,18 @@
             <div class="debug-info">
                 <div>服务器状态: <span id="serverStatus">等待连接</span></div>
                 <div>音频状态: <span id="audioStatus">等待初始化</span></div>
+                <div>网络状态: <span id="networkStatus">等待连接</span></div>
             </div>
+            
+            <!-- 性能监视器容器 -->
+            <h3>性能监视</h3>
+            <div class="performance-monitors">
+                <div class="row">
+                    <div class="col col-auto">渲染: <div id="statsRenderer"></div></div>
+                    <div class="col col-auto">Kinect: <div id="statsKinect"></div></div>
+                </div>
+            </div>
+            
             <h3>日志</h3>
             <div class="logs-container" id="logs"></div>
         </div>
@@ -478,6 +490,19 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // 初始化性能监视器
+            const statsRenderer = new Stats();
+            statsRenderer.dom.style.cssText = '';
+            document.getElementById('statsRenderer')?.appendChild(statsRenderer.dom);
+            
+            const statsKinect = new Stats();
+            statsKinect.dom.style.cssText = '';
+            document.getElementById('statsKinect')?.appendChild(statsKinect.dom);
+            
+            // 将性能监视器暴露给全局，以便其他脚本可以使用
+            window.statsRenderer = statsRenderer;
+            window.statsKinect = statsKinect;
+            
             // 从sessionStorage获取登录信息
             const roomId = sessionStorage.getItem('meetingRoomId');
             const userId = sessionStorage.getItem('meetingUserId');
@@ -783,73 +808,213 @@
     <!-- 引入必要的库 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-peer/9.11.1/simplepeer.min.js"></script>
-    <script src="kinect-azure/examples/electron/renderer/assets/vendors/three.js/build/three.min.js"></script>
-    <script src="kinect-azure/examples/electron/renderer/assets/vendors/three.js/examples/js/controls/OrbitControls.js"></script>
+    <script src="renderer/assets/vendors/stats.min.js"></script>
+    <script src="renderer/assets/vendors/three.js/build/three.min.js"></script>
+    <script src="renderer/assets/vendors/three.js/examples/js/controls/OrbitControls.js"></script>    
+    <!-- <script src="kinect-azure/examples/electron/renderer/assets/vendors/three.js/build/three.min.js"></script>
+    <script src="kinect-azure/examples/electron/renderer/assets/vendors/three.js/examples/js/controls/OrbitControls.js"></script> -->
     
     <!-- 引入应用程序脚本 -->
     <script src="renderer/webrtc.js"></script>
     <script src="renderer/app.js"></script>
     
-    <!-- 调试面板立即激活脚本 -->
+    <!-- 添加虚拟参会者脚本 -->
     <script>
-        // 确保调试面板按钮在页面加载后立即可用
         window.addEventListener('load', function() {
-            console.log("页面完全加载，确保调试面板功能正常");
-            
-            // 直接获取调试面板元素
-            const showDebugButton = document.getElementById("showDebugButton");
-            const debugPanel = document.getElementById("debugPanel");
-            debugPanel.style.zIndex = "1000";
-            showDebugButton.style.zIndex = "1001";
-            // 检查元素是否存在
-            if (showDebugButton && debugPanel) {
-                console.log("找到调试按钮和面板");
-                
-                // 确保z-index足够高
-                debugPanel.style.zIndex = "1000";
-                showDebugButton.style.zIndex = "1001";
-                
-                // 确保元素可见
-                showDebugButton.style.display = "block";
-                
-                // 重新添加事件监听器
-                showDebugButton.onclick = function() {
-                    console.log("调试按钮被点击");
-                    let isShowing = debugPanel.classList.contains("show");
-                    
-                    if (isShowing) {
-                        console.log("隐藏调试面板");
-                        debugPanel.classList.remove("show");
-                        showDebugButton.textContent = "显示调试信息";
-                    } else {
-                        console.log("显示调试面板");
-                        debugPanel.classList.add("show");
-                        showDebugButton.textContent = "隐藏调试信息";
-                    }
-                };
-                
-                // 添加日志记录功能
-                window.addDebugLog = function(message, type = "") {
-                    const logsContainer = document.getElementById("logs");
-                    if (logsContainer) {
-                        const logEntry = document.createElement("div");
-                        logEntry.className = type;
-                        logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-                        logsContainer.prepend(logEntry);
-                        
-                        // 保持日志条目数量合理
-                        while (logsContainer.children.length > 100) {
-                            logsContainer.removeChild(logsContainer.lastChild);
-                        }
-                    }
-                };
-                
-                // 添加一条初始日志
-                window.addDebugLog("调试面板已初始化", "success");
-            } else {
-                console.error("找不到调试按钮或面板元素!");
-            }
+            // 添加虚拟参会者
+            setTimeout(addVirtualParticipants, 3000);
         });
+        
+        // 创建虚拟参会者函数
+        function addVirtualParticipants() {
+            // 创建虚拟参会者1
+            // createVirtualParticipant('Vivian', './renderer/assets/videos/WGD_lake_virtual.mp4');
+            
+            // 创建虚拟参会者2
+            // createVirtualParticipant('LiHua', './renderer/assets/videos/SZX_virtual.mp4');
+            
+            // 创建虚拟参会者3
+            createVirtualParticipant('东浩', './renderer/assets/videos/WDH_virtual.mp4');
+            
+            // 更新布局
+            updateLayout();
+            
+            // 记录日志
+            if (window.addDebugLog) {
+                window.addDebugLog("已添加2个虚拟参会者", "success");
+            }
+        }
+        
+        // 创建单个虚拟参会者的函数
+        function createVirtualParticipant(userId, videoUrl) {
+            // 创建虚拟参会者的视频容器
+            const videoWrapper = document.createElement('div');
+            videoWrapper.className = 'video-wrapper remote';
+            videoWrapper.id = `remoteVideo_${userId}_wrapper`;
+            
+            // 创建Canvas元素
+            const canvas = document.createElement('canvas');
+            canvas.className = 'video-element';
+            canvas.id = `remoteCanvas_${userId}`;
+            canvas.width = 640;
+            canvas.height = 480;
+            
+            // 创建隐藏的视频元素来播放视频
+            const video = document.createElement('video');
+            video.id = `virtualVideo_${userId}`;
+            video.style.display = 'none';
+            video.autoplay = true;
+            video.loop = true;
+            video.muted = true;
+            video.src = videoUrl;
+            video.addEventListener('loadedmetadata', () => {
+                console.log(`视频 ${userId} 已加载，尺寸: ${video.videoWidth}x${video.videoHeight}`);
+                // 调用play()以确保播放开始，否则不播
+                video.play().then(() => {
+                    console.log(`视频 ${userId} 开始播放`);
+                    drawVideoToCanvas(video, canvas);
+                }).catch(err => {
+                    console.error(`视频播放失败: ${err.message}`);
+                });
+            });
+            
+            // 用户信息
+            const userInfo = document.createElement('div');
+            userInfo.className = 'user-info';
+            userInfo.textContent = userId;
+            
+            // 添加视频控制按钮
+            const videoControls = document.createElement('div');
+            videoControls.className = 'video-controls';
+            
+            const pinBtn = document.createElement('div');
+            pinBtn.className = 'video-control-btn pin-btn';
+            pinBtn.title = '固定视图';
+            pinBtn.textContent = '📌';
+            pinBtn.onclick = function() {
+                document.querySelectorAll('.video-wrapper').forEach(wrapper => {
+                    wrapper.classList.remove('pinned');
+                });
+                videoWrapper.classList.add('pinned');
+            };
+            
+            videoControls.appendChild(pinBtn);
+            
+            // 将所有元素添加到包装器
+            videoWrapper.appendChild(canvas);
+            videoWrapper.appendChild(video); // 添加隐藏的视频元素
+            videoWrapper.appendChild(userInfo);
+            videoWrapper.appendChild(videoControls);
+            
+            // 添加到视频容器
+            const videoContainer = document.getElementById('videoContainer');
+            if (videoContainer) {
+                videoContainer.appendChild(videoWrapper);
+                
+                // 更新参与者计数
+                updateParticipantCount();
+            }
+        }
+        
+        // 将视频绘制到Canvas
+        function drawVideoToCanvas(video, canvas) {
+            const ctx = canvas.getContext('2d');
+            
+            // 计算视频和canvas的宽高比
+            const videoRatio = video.videoWidth / video.videoHeight;
+            const canvasRatio = canvas.width / canvas.height;
+            
+            let drawWidth, drawHeight, x, y;
+            
+            // 应用"覆盖"模式 - 保持宽高比并填满canvas
+            if (videoRatio > canvasRatio) {
+                // 视频比canvas更宽，以高度为基准
+                drawHeight = canvas.height;
+                drawWidth = drawHeight * videoRatio;
+                x = (canvas.width - drawWidth) / 2;
+                y = 0;
+            } else {
+                // 视频比canvas更高，以宽度为基准
+                drawWidth = canvas.width;
+                drawHeight = drawWidth / videoRatio;
+                x = 0;
+                y = (canvas.height - drawHeight) / 2;
+            }
+            
+            // 先清除canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制视频
+            ctx.drawImage(video, x, y, drawWidth, drawHeight);
+            
+            // 继续循环绘制
+            requestAnimationFrame(() => drawVideoToCanvas(video, canvas));
+        }
+        
+        // 网络性能监视功能
+        let lastNetworkUpdateTime = Date.now();
+        let lastBytesSent = 0;
+        let lastBytesReceived = 0;
+        
+        // 更新网络性能统计数据
+        async function updateNetworkStats() {
+            // 确认已初始化网络统计和WebRTC管理器
+            if (!window.webrtcManager || !window.webrtcManager.getNetworkStats) return;
+            
+            try {
+                // 获取网络统计数据
+                const stats = await window.webrtcManager.getNetworkStats();
+                const bytesSent = stats.bytesSent;
+                const bytesReceived = stats.bytesReceived;
+                
+                const now = Date.now();
+                const timeDiff = (now - lastNetworkUpdateTime) / 1000; // 秒
+                
+                if (timeDiff > 0) {
+                    // 计算传输速率 (bytes/s)
+                    const sendRate = (bytesSent - lastBytesSent) / timeDiff;
+                    const receiveRate = (bytesReceived - lastBytesReceived) / timeDiff;
+                    
+                    // 更新顶部栏网络状态
+                    const topNetworkStatus = document.getElementById('topNetworkStatus');
+                    if (topNetworkStatus) {
+                        topNetworkStatus.textContent = `网速: ↑${formatBytes(sendRate)}/s ↓${formatBytes(receiveRate)}/s`;
+                    }
+                    
+                    // 更新调试面板网络状态
+                    const networkStatus = document.getElementById('networkStatus');
+                    if (networkStatus) {
+                        networkStatus.textContent = `↑${formatBytes(sendRate)}/s ↓${formatBytes(receiveRate)}/s`;
+                    }
+                    
+                    // 更新日志
+                    if (window.addDebugLog && (sendRate > 0 || receiveRate > 0)) {
+                        window.addDebugLog(`网络: ↑${formatBytes(sendRate)}/s ↓${formatBytes(receiveRate)}/s`);
+                    }
+                    
+                    // 保存当前值以便下次计算
+                    lastNetworkUpdateTime = now;
+                    lastBytesSent = bytesSent;
+                    lastBytesReceived = bytesReceived;
+                }
+            } catch (error) {
+                console.error('网络统计数据更新失败:', error);
+            }
+        }
+        
+        // 格式化字节数显示
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 B';
+            
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
+        }
+        
+        // 暴露网络统计更新函数给全局
+        window.updateNetworkStats = updateNetworkStats;
     </script>
 </body>
 </html> 
