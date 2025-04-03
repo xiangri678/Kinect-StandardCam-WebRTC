@@ -1406,7 +1406,9 @@ class WebRTCManager {
       // 如果仍然连接中，继续渲染循环
       // if (this.isConnected) {
         this.remoteCanvasAnimationId = requestAnimationFrame(renderFrame);
-        // console.log('[WebRTC] 远程Canvas渲染循环已启动');
+      // console.log('[WebRTC] 远程Canvas渲染循环已启动');
+      window.updateNetworkStats();
+
       // }
     };
     
@@ -1431,6 +1433,102 @@ class WebRTCManager {
   getConnectedUsers() {
     return Object.keys(this.peers).filter(userId => 
       this.peers[userId] && this.peers[userId].connected);
+  }
+  
+  // 获取网络统计数据
+  async getNetworkStats() {
+    try {
+      let totalBytesSent = 0;
+      let totalBytesReceived = 0;
+      let dataChannelBytesSent = 0;
+      let dataChannelBytesReceived = 0;
+      
+      // 遍历所有连接的peer
+      const connectedUsers = this.getConnectedUsers();
+      for (const userId of connectedUsers) {
+        const peer = this.peers[userId];
+        if (peer && peer._pc) { // SimplePeer内部的RTCPeerConnection对象
+          const stats = await peer._pc.getStats();
+          
+          // 处理统计数据
+          stats.forEach(report => {
+            // 收集传出字节数
+            if (report.type === 'outbound-rtp' && report.bytesSent) {
+              totalBytesSent += report.bytesSent;
+            }
+            
+            // 收集传入字节数
+            if (report.type === 'inbound-rtp' && report.bytesReceived) {
+              totalBytesReceived += report.bytesReceived;
+            }
+            
+            // 收集数据通道(DataChannel)的传输字节数
+            if (report.type === 'data-channel') {
+              if (report.messagesSent && report.bytesSent) {
+                totalBytesSent += report.bytesSent;
+                dataChannelBytesSent += report.bytesSent;
+              }
+              if (report.messagesReceived && report.bytesReceived) {
+                totalBytesReceived += report.bytesReceived;
+                dataChannelBytesReceived += report.bytesReceived;
+              }
+            }
+            
+            // 收集SCTP传输统计数据(DataChannel使用SCTP协议)
+            if (report.type === 'sctp-transport') {
+              if (report.bytesSent) {
+                totalBytesSent += report.bytesSent;
+              }
+              if (report.bytesReceived) {
+                totalBytesReceived += report.bytesReceived;
+              }
+            }
+            
+            // 收集传输层统计数据
+            if (report.type === 'transport') {
+              if (report.bytesSent) {
+                totalBytesSent += report.bytesSent;
+              }
+              if (report.bytesReceived) {
+                totalBytesReceived += report.bytesReceived;
+              }
+            }
+          });
+          
+          // 存储上次数据通道传输量，用于对比是否有变化
+          if (!this._lastDataChannelStats) {
+            this._lastDataChannelStats = { sent: 0, received: 0 };
+          }
+          
+          // 仅当数据通道有传输且与上次相比有变化时才记录日志
+          if (dataChannelBytesSent > 0 || dataChannelBytesReceived > 0) {
+            const sentDiff = dataChannelBytesSent - this._lastDataChannelStats.sent;
+            const receivedDiff = dataChannelBytesReceived - this._lastDataChannelStats.received;
+            
+            if (sentDiff > 0 || receivedDiff > 0) {
+              this.log(`数据通道传输: 发送=${dataChannelBytesSent}字节(+${sentDiff}), 接收=${dataChannelBytesReceived}字节(+${receivedDiff})`);
+              
+              // 更新上次统计值
+              this._lastDataChannelStats.sent = dataChannelBytesSent;
+              this._lastDataChannelStats.received = dataChannelBytesReceived;
+            }
+          }
+          
+          // 仅在调试模式下记录数据通道状态
+          if (this.debug && this.dataChannels[userId]) {
+            const dataChannel = this.dataChannels[userId];
+            if (dataChannel.bufferedAmount > 0) {
+              this.log(`数据通道状态 (${userId}): readyState=${dataChannel.readyState}, bufferedAmount=${dataChannel.bufferedAmount}`);
+            }
+          }
+        }
+      }
+      
+      return { bytesSent: totalBytesSent, bytesReceived: totalBytesReceived };
+    } catch (error) {
+      this.error('获取网络统计数据失败', error);
+      return { bytesSent: 0, bytesReceived: 0 };
+    }
   }
 }
 
