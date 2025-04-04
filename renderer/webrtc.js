@@ -629,15 +629,44 @@ class WebRTCManager {
       this.log('获取本地媒体流');
       
       // 检查本地流是否已存在
-      if (this.localStream) {
-        this.log('已有本地媒体流，无需重新获取', {
-          tracks: this.localStream.getTracks().map(t => ({
-            kind: t.kind,
-            label: t.label,
-            enabled: t.enabled,
-            readyState: t.readyState
-          }))
-        });
+      const hasExistingStream = !!this.localStream;
+      
+      if (hasExistingStream) {
+        // 即使已有流，也检查其中是否有音频轨道
+        const audioTracks = this.localStream.getAudioTracks();
+        if (audioTracks.length === 0) {
+          this.log('已有本地视频流，但缺少音频轨道，将尝试获取音频');
+          
+          // 获取音频流
+          try {
+            const audioStream = await navigator.mediaDevices.getUserMedia({
+              audio: true,
+              video: false
+            });
+            
+            this.log('250404-成功获取音频流', {
+              tracks: audioStream.getTracks().map(t => ({
+                kind: t.kind,
+                label: t.label,
+                enabled: t.enabled,
+                readyState: t.readyState
+              }))
+            });
+            this.localAudioStream = audioStream;
+            
+            // 将音频轨道添加到现有流中
+            const audioTrack = audioStream.getAudioTracks()[0];
+            if (audioTrack) {
+              this.localStream.addTrack(audioTrack);
+              this.log('250404-已将音频轨道添加到现有媒体流');
+            }
+          } catch (audioError) {
+            this.error('获取音频流失败，将继续使用仅视频流', audioError);
+          }
+        } else {
+          this.log('已有包含音频轨道的本地媒体流，无需重新获取');
+        }
+        
         return this.localStream;
       }
       

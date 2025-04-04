@@ -580,13 +580,43 @@ document.addEventListener('DOMContentLoaded', async () => {
           parentElement: remoteCanvas.parentElement?.id,
         });
 
-        // 创建一个离屏视频元素来播放流
+        // 提取音频轨道和视频轨道
+        const audioTracks = stream.getAudioTracks();
+        const videoTracks = stream.getVideoTracks();
+        
+        console.log(`[App] 远程流轨道分析:`, {
+          audioTracks: audioTracks.length,
+          videoTracks: videoTracks.length
+        });
+        
+        // 创建一个专门的音频元素处理音频
+        if (audioTracks.length > 0) {
+          // 创建包含仅音频轨道的新媒体流
+          const audioStream = new MediaStream(audioTracks);
+          
+          // 创建音频元素
+          const audioElement = document.createElement("audio");
+          audioElement.srcObject = audioStream;
+          audioElement.autoplay = true;
+          audioElement.id = `audio_${remoteUserId}`;
+          document.body.appendChild(audioElement); // 添加到DOM但不需要显示
+          
+          console.log(`[App] 创建音频元素: ${audioElement.id}`);
+          
+          // 保存音频元素引用以便后续清理
+          window.audioElements = window.audioElements || {};
+          window.audioElements[remoteUserId] = audioElement;
+        } else {
+          console.log(`[App] 远程流中没有音频轨道`);
+        }
+
+        // 创建一个离屏视频元素来播放视频流
         const videoElement = document.createElement("video");
         videoElement.srcObject = stream;
         videoElement.autoplay = true;
-        videoElement.muted = true; // 视频元素静音，避免重复播放音频
+        videoElement.muted = true; // 视频元素静音，音频由单独的音频元素处理
         videoElement.id = `video_${remoteUserId}`;
-        videoElement.style.display = "block"; // 隐藏视频元素
+        videoElement.style.display = "block"; // 直接设置为block
         remoteCanvas.appendChild(videoElement);
 
         // 添加视频流状态监听
@@ -752,7 +782,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error(`WebRTC错误 (${userId || "未知"}):`, error);
         updateStatus(`连接错误: ${error}`, "error");
       },
-      onUserJoined: (userId) => { // TODO: 这里多调用了一遍，重复了
+      onUserJoined: (userId) => {
         console.log(`用户 ${userId} 加入了会议`);
         // 更新参与者计数
         if (window.updateParticipantCount) {
@@ -761,26 +791,37 @@ document.addEventListener('DOMContentLoaded', async () => {
       },
       onUserLeft: (userId) => {
         console.log(`用户 ${userId} 离开了会议`);
-
-        // 清理视频元素
-        if (window.videoElements && window.videoElements[userId]) {
-          const videoElement = window.videoElements[userId];
-          if (videoElement && videoElement.parentNode) {
-            videoElement.pause();
-            videoElement.srcObject = null;
-            videoElement.parentNode.removeChild(videoElement);
-          }
-          delete window.videoElements[userId];
-        }
-
-        // 移除远程视频元素
+        
+        // 移除远程视频容器
         window.removeRemoteVideoElement(userId);
-
+        
+        // 移除音频元素
+        if (window.audioElements && window.audioElements[userId]) {
+          console.log(`清理用户 ${userId} 的音频元素`);
+          const audioElement = window.audioElements[userId];
+          if (audioElement.srcObject) {
+            const tracks = audioElement.srcObject.getTracks();
+            tracks.forEach(track => track.stop());
+            audioElement.srcObject = null;
+          }
+          if (audioElement.parentNode) {
+            audioElement.parentNode.removeChild(audioElement);
+          }
+          delete window.audioElements[userId];
+        }
+        
+        addLog("系统", `用户 ${userId} 离开了会议`);
+        
         // 更新参与者计数
         if (window.updateParticipantCount) {
           window.updateParticipantCount();
         }
-      },
+        
+        // 更新布局
+        if (window.updateLayout) {
+          window.updateLayout();
+        }
+      }
     });
 
     // 加入房间
