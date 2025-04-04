@@ -7,8 +7,7 @@
 - 兼容原有Kinect WebRTC应用程序的通信协议
 - 支持多人会议
 - 可以在没有Kinect库的普通电脑上运行
-  - 提供视频和音频控制功能
-
+- 提供视频和音频控制功能
 - 包含详细的调试和日志功能
 
 ## 系统要求
@@ -36,13 +35,12 @@ npm install
 ```
 
 3. Kinect库安装（可选）
-对于使用Kinect设备的用户，需要安装Kinect库以激活 Azure Kinect 相机的特殊功能：
+   对于使用Kinect设备的用户，需要安装Kinect库以激活 Azure Kinect 相机的特殊功能：
 
    - 从微软Azure官网下载安装本项目兼容的SDK版本：
      - Azure Kinect Sensor SDK v1.4.1
      - Azure Kinect Body Tracking SDK v1.1.0
    - 下载 kinect-azure 库，放在项目顶级目录下备用。kinect-azure 库实现了在 Node.js 环境中使用 Azure Kinect 相机。
-
 4. 启动应用
 
 ```bash
@@ -58,6 +56,7 @@ npm start
    - 服务器地址 (默认为http://localhost:3001，或使用Kinect主机IP地址)
 2. 点击"加入房间"连接到会议
 3. 使用界面控件管理音视频
+4. 如果自动选择的音视频流不符合预期，可能需要在系统设置里手动切换
 
 ## 用户界面
 
