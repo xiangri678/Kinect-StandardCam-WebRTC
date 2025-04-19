@@ -35,6 +35,7 @@ logs
 
 # 大文件
 renderer/assets/videos
+tools/PerformanceReports/
 
 # 库文件
 kinect-azure/
