@@ -1,3 +1,6 @@
+// Import telemetry module
+// const { telemetry } = require('./performance-telemetry');
+
 // webrtc.js - WebRTC通信模块
 class WebRTCManager {
   constructor() {
@@ -219,6 +222,16 @@ class WebRTCManager {
   async connectToPeer(targetUserId, isInitiator = false) {
     this.log(`尝试连接到对等方: ${targetUserId}, 是否为发起方: ${isInitiator}`);
     
+    // 初始化连接时间追踪对象
+    this.connectionTimings = this.connectionTimings || {};
+    this.connectionTimings[targetUserId] = {
+        startTime: performance.now(),
+        iceGatheringStart: 0,
+        iceGatheringEnd: 0,
+        connectionEstablished: 0,
+        candidates: []
+    };
+    
     // 如果已经有到此用户的连接，先清理
     if (this.peers[targetUserId]) {
       this.log(`关闭与用户 ${targetUserId} 的现有连接`);
@@ -272,6 +285,15 @@ class WebRTCManager {
       }
       // 发送ICE候选
       else if (data.candidate) {
+        // 记录ICE候选者，用于性能分析
+        this.connectionTimings[targetUserId].candidates.push(data.candidate);
+        
+        // 如果是第一个ICE候选，标记为ICE收集开始
+        if (this.connectionTimings[targetUserId].iceGatheringStart === 0) {
+            this.connectionTimings[targetUserId].iceGatheringStart = performance.now();
+            this.log(`ICE收集开始`);
+        }
+        
         this.log(`发送ICE候选者到对等方 ${targetUserId}`);
         this.socket.emit('ice-candidate', data, targetUserId);
       }
@@ -281,6 +303,30 @@ class WebRTCManager {
     peer.on('connect', () => {
       this.log(`与用户 ${targetUserId} 的对等连接已建立`);
       this.updateStatus(`已连接到用户 ${targetUserId}`, 'success');
+      
+      // 记录连接建立时间，用于性能分析
+      this.connectionTimings[targetUserId].connectionEstablished = performance.now();
+      const establishmentTime = this.connectionTimings[targetUserId].connectionEstablished - 
+                          this.connectionTimings[targetUserId].startTime;
+      
+      // 假设ICE收集在连接建立时已完成
+      if (this.connectionTimings[targetUserId].iceGatheringEnd === 0) {
+        this.connectionTimings[targetUserId].iceGatheringEnd = performance.now();
+        const gatheringTime = this.connectionTimings[targetUserId].iceGatheringEnd - 
+                             this.connectionTimings[targetUserId].iceGatheringStart;
+        
+        window.telemetry.recordIceGatheringTime(gatheringTime);
+        this.log(`ICE收集完成，用时: ${gatheringTime.toFixed(2)}ms`);
+        
+        // 记录候选数量
+        const candidateCount = this.connectionTimings[targetUserId].candidates.length;
+        window.telemetry.recordIceCandidateCount(candidateCount);
+        this.log(`ICE候选数量: ${candidateCount}`);
+        
+        // 记录连接建立时间
+        window.telemetry.recordConnectionEstablishmentTime(establishmentTime);
+        this.log(`连接建立成功，总用时: ${establishmentTime.toFixed(2)}ms`);
+      }
       
       // 创建数据通道
       this.createDataChannel(targetUserId);
@@ -333,6 +379,16 @@ class WebRTCManager {
     this.log(`收到来自 ${fromUserId} 的offer`);
     
     try {
+      // 初始化连接时间追踪对象
+      this.connectionTimings = this.connectionTimings || {};
+      this.connectionTimings[fromUserId] = {
+        startTime: performance.now(),
+        iceGatheringStart: 0,
+        iceGatheringEnd: 0,
+        connectionEstablished: 0,
+        candidates: []
+      };
+      
       // 检查是否已经有连接
       if (this.peers[fromUserId]) {
         this.log(`已存在与用户 ${fromUserId} 的连接，销毁旧连接`);
@@ -381,6 +437,15 @@ class WebRTCManager {
           this.log(`发送answer到对等方 ${fromUserId}`);
           this.socket.emit('answer', data, fromUserId);
         } else if (data.candidate) {
+          // 记录ICE候选者，用于性能分析
+          this.connectionTimings[fromUserId].candidates.push(data.candidate);
+          
+          // 如果是第一个ICE候选，标记为ICE收集开始
+          if (this.connectionTimings[fromUserId].iceGatheringStart === 0) {
+              this.connectionTimings[fromUserId].iceGatheringStart = performance.now();
+              this.log(`ICE收集开始`);
+          }
+          
           this.log(`发送ICE候选者到对等方 ${fromUserId}`);
           this.socket.emit('ice-candidate', data, fromUserId);
         }
@@ -390,6 +455,30 @@ class WebRTCManager {
       peer.on('connect', () => {
         this.log(`与用户 ${fromUserId} 的对等连接已建立`);
         this.updateStatus(`已连接到用户 ${fromUserId}`, 'success');
+        
+        // 记录连接建立时间，用于性能分析
+        this.connectionTimings[fromUserId].connectionEstablished = performance.now();
+        const establishmentTime = this.connectionTimings[fromUserId].connectionEstablished - 
+                           this.connectionTimings[fromUserId].startTime;
+        
+        // 假设ICE收集在连接建立时已完成
+        if (this.connectionTimings[fromUserId].iceGatheringEnd === 0) {
+          this.connectionTimings[fromUserId].iceGatheringEnd = performance.now();
+          const gatheringTime = this.connectionTimings[fromUserId].iceGatheringEnd - 
+                               this.connectionTimings[fromUserId].iceGatheringStart;
+          
+          window.telemetry.recordIceGatheringTime(gatheringTime);
+          this.log(`ICE收集完成，用时: ${gatheringTime.toFixed(2)}ms`);
+          
+          // 记录候选数量
+          const candidateCount = this.connectionTimings[fromUserId].candidates.length;
+          window.telemetry.recordIceCandidateCount(candidateCount);
+          this.log(`ICE候选数量: ${candidateCount}`);
+          
+          // 记录连接建立时间
+          window.telemetry.recordConnectionEstablishmentTime(establishmentTime);
+          this.log(`连接建立成功，总用时: ${establishmentTime.toFixed(2)}ms`);
+        }
         
         // 创建数据通道
         this.createDataChannel(fromUserId);

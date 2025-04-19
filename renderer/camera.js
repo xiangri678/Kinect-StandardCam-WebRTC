@@ -462,7 +462,7 @@ class CameraManager {
   }
   
   // 设置 mac 视图模式
-  setViewMode(mode, fromUserId) {
+    setViewMode(mode, fromUserId) {
     if (mode !== 'color' && mode !== 'pointCloud' && mode !== 'depth' && mode !== 'infrared') {
       console.error('无效的视图模式:', mode);
       return;

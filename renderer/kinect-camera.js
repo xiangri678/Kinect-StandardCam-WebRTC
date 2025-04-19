@@ -12,6 +12,9 @@ let isWindows = typeof window !== 'undefined' &&
   (window.navigator.platform.indexOf('Win') >= 0);
 var lastTransferPointCloudDataTime = 0;
 
+// Import telemetry module
+// const { telemetry } = require('./performance-telemetry');
+
 try { 
   if (isWindows) {
     KinectAzure = require('kinect-azure');
@@ -673,8 +676,14 @@ class KinectCameraManager {
     }
 
     try {
+      // End transmission timing and start rendering timing
+      window.telemetry.startRenderingTiming();
       // 根据当前视图模式处理媒体流更新
-      if (this.viewMode === "color" || this.viewMode === "depth" || this.viewMode === "infrared") {
+      if (
+        this.viewMode === "color" ||
+        this.viewMode === "depth" ||
+        this.viewMode === "infrared"
+      ) {
         console.log(`更新媒体流: 使用${this.viewMode}模式下的视频流`);
 
         if (!window.localStream) {
@@ -811,6 +820,9 @@ class KinectCameraManager {
           window.notifyStreamUpdated();
         }
 
+        // End rendering timing
+        window.telemetry.endRenderingTiming();
+
         return true;
       } else {
         console.error(`不支持的视图模式: ${this.viewMode}`);
@@ -818,7 +830,8 @@ class KinectCameraManager {
       }
     } catch (error) {
       console.error("更新媒体流时出错:", error);
-      return false;
+      // Record exception in telemetry
+      window.telemetry.recordException();
     }
   }
 
