@@ -1,0 +1,16 @@
+@startuml Kinect用户切换视图模式
+actor "角色：Kinect用户"
+participant 系统
+
+Kinect用户 -> 系统: openViewModeSelector()
+系统 --> Kinect用户: showViewModeOptions()
+Kinect用户 -> 系统: selectViewMode()
+系统 --> Kinect用户: changeLocalViewMode()
+系统 --> Kinect用户: updateViewRendering()
+系统 --> Kinect用户: notifyViewModeChange()
+系统 --> Kinect用户: adjustDataTransmission()
+alt 选择点云模式
+    Kinect用户 -> 系统: configurePointCloudParams()
+    系统 --> Kinect用户: updatePointCloudRendering()
+end
+@enduml

@@ -1,0 +1,59 @@
+@startuml 技术协作关系图
+skinparam backgroundColor transparent
+skinparam componentStyle uml2
+skinparam defaultTextAlignment center
+
+' 定义主要技术组件
+[Electron应用框架] as Electron #98FB98
+[WebRTC通信技术] as WebRTC #87CEFA
+[Kinect深度感知] as Kinect #FFA07A
+[Three.js渲染引擎] as ThreeJS #DDA0DD
+[Socket.IO信令服务] as SocketIO #FFFF99
+[Node.js运行时] as NodeJS #C0C0C0
+
+' 定义技术之间的关系
+Electron --> NodeJS : 基于
+SocketIO --> NodeJS : 使用
+WebRTC ..> SocketIO : 信令交换
+Kinect --> NodeJS : 通过N-API集成
+ThreeJS --> Electron : 在渲染进程中运行
+
+' 核心协作关系
+WebRTC <--> Kinect : 传输深度数据
+WebRTC <--> ThreeJS : 渲染远程点云
+Kinect <--> ThreeJS : 提供点云数据
+Electron <--> WebRTC : 管理P2P连接
+Electron <--> SocketIO : 内置服务器
+
+' 添加技术说明注释
+note right of Electron
+  桌面应用容器
+  集成Web与原生功能
+end note
+
+note right of WebRTC
+  点对点实时通信
+  音视频与数据传输
+end note
+
+note right of Kinect
+  深度相机与传感器
+  多模态数据采集
+end note
+
+note right of ThreeJS
+  WebGL 3D渲染
+  点云可视化
+end note
+
+note right of SocketIO
+  实时双向通信
+  连接协商与会话管理
+end note
+
+note right of NodeJS
+  跨平台JavaScript运行时
+  提供系统级API访问
+end note
+
+@enduml

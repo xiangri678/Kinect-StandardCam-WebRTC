@@ -1,0 +1,125 @@
+@startuml 领域模型类图
+
+package "用户与会话管理" {
+  class User {
+    -用户ID: String
+    -用户名: String
+    -连接状态: Enum
+    -媒体设备列表: List<MediaDevice>
+    -当前会话: Session
+  }
+  
+  class Room {
+    -房间ID: String
+    -参与用户: List<User>
+    -创建时间: DateTime
+    -活跃状态: Boolean
+  }
+  
+  class Session {
+    -会话ID: String
+    -房间: Room
+    -开始时间: DateTime
+    -参与用户: List<User>
+    -活跃连接: List<Connection>
+  }
+}
+
+package "媒体设备管理" {
+  abstract class MediaDevice {
+    -设备ID: String
+    -设备类型: Enum
+    -设备名称: String
+    -可用状态: Boolean
+  }
+  
+  class Camera {
+    -分辨率: Object{width, height}
+    -帧率: Number
+    -视频格式: String
+  }
+  
+  class KinectDevice {
+    -深度分辨率: Object{width, height}
+    -点云密度: Number
+    -传感器状态: Object
+    -视图模式: ViewMode
+  }
+  
+  class MediaStream {
+    -流ID: String
+    -流类型: Enum
+    -媒体格式: Object
+    -活跃轨道数: Number
+  }
+  
+  class ViewMode {
+    -模式类型: Enum
+    -显示参数: Object
+    -渲染设置: Object
+  }
+}
+
+package "通信与连接管理" {
+  class Connection {
+    -连接ID: String
+    -源用户: User
+    -目标用户: User
+    -连接状态: Enum
+    -网络质量: NetworkStatistics
+  }
+  
+  class DataChannel {
+    -通道ID: String
+    -通道类型: Enum
+    -通道状态: Enum
+    -关联连接: Connection
+  }
+  
+  class SignalingServer {
+    -服务器地址: String
+    -端口: Number
+    -连接状态: Boolean
+    -活跃用户数: Number
+    -活跃房间: List<Room>
+  }
+  
+  class NetworkStatistics {
+    -延迟: Number
+    -丢包率: Number
+    -比特率: Number
+    -抖动: Number
+  }
+}
+
+package "数据处理与可视化" {
+  class PointCloudData {
+    -数据大小: Number
+    -点数量: Number
+    -颜色信息: Array
+    -深度信息: Array
+    -时间戳: DateTime
+  }
+}
+
+' 继承关系
+MediaDevice <|-- Camera
+Camera <|-- KinectDevice
+
+' 关联关系
+User "1" --> "0..*" MediaDevice : 拥有
+User "0..*" --> "0..1" Session : 参与
+Session "0..*" --> "1" Room : 属于
+Room "1" --> "0..*" User : 包含
+KinectDevice "1" --> "1" ViewMode : 使用
+KinectDevice "1" --> "0..*" PointCloudData : 生成
+Connection "0..*" --> "1" User : 源用户
+Connection "0..*" --> "1" User : 目标用户
+Connection "1" --> "0..*" DataChannel : 创建
+Connection "1" --> "1" NetworkStatistics : 测量
+Session "1" --> "0..*" Connection : 包含
+MediaDevice "1" --> "0..*" MediaStream : 产生
+SignalingServer "1" --> "0..*" Room : 管理
+DataChannel "0..*" --> "0..*" PointCloudData : 传输
+
+@enduml

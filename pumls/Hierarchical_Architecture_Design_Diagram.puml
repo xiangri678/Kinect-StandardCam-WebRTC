@@ -1,0 +1,82 @@
+@startuml 层次架构设计
+skinparam packageStyle rectangle
+skinparam backgroundColor transparent
+skinparam componentStyle uml2
+
+package "Electron 应用层" {
+  [用户界面组件] as UI
+  [Three.js 渲染引擎] as Three
+  [WebGL 着色器] as WebGL
+  [会议控制模块] as MeetingControl
+  [状态管理器] as StateManager
+  
+  UI --> Three
+  Three --> WebGL
+  UI --> MeetingControl
+  MeetingControl --> StateManager
+}
+
+package "内置信令服务器" {
+  [Socket.IO 服务器] as SocketServer
+  [房间管理器] as RoomManager
+  [连接事件广播] as EventBroadcaster
+  [心跳检测] as HeartbeatMonitor
+  
+  SocketServer --> RoomManager
+  SocketServer --> EventBroadcaster
+  SocketServer --> HeartbeatMonitor
+}
+
+package "WebRTC 通信层" {
+  [连接管理器] as ConnectionManager
+  [媒体流处理] as MediaStreamHandler
+  [DataChannel 控制器] as DataChannelController
+  [网络状态监控] as NetworkMonitor
+  [自适应编码器] as AdaptiveEncoder
+  
+  ConnectionManager --> MediaStreamHandler
+  ConnectionManager --> DataChannelController
+  NetworkMonitor --> AdaptiveEncoder
+  AdaptiveEncoder --> MediaStreamHandler
+}
+
+package "摄像头抽象层" {
+  [设备检测] as DeviceDetection
+  [摄像头工厂] as CameraFactory
+  [标准摄像头控制器] as StandardCamera
+  [Kinect控制器] as KinectCamera
+  [多模态同步器] as MultimodalSynchronizer
+  [线程池管理器] as ThreadPoolManager
+  
+  DeviceDetection --> CameraFactory
+  CameraFactory ..> StandardCamera : <<创建>>
+  CameraFactory ..> KinectCamera : <<创建>>
+  KinectCamera --> MultimodalSynchronizer
+  MultimodalSynchronizer --> ThreadPoolManager
+}
+
+Electron 应用层 --> 内置信令服务器 : 初始化
+Electron 应用层 --> WebRTC 通信层 : 调用
+WebRTC 通信层 --> 摄像头抽象层 : 获取媒体
+内置信令服务器 --> WebRTC 通信层 : 协调连接
+
+note right of 摄像头抽象层
+  提供统一接口，隐藏不同
+  摄像头的底层实现差异
+end note
+
+note right of WebRTC 通信层
+  实现点对点加密传输
+  和自适应带宽管理
+end note
+
+note right of 内置信令服务器
+  管理房间和转发信令
+  无需额外服务器部署
+end note
+
+note right of Electron 应用层
+  整合桌面功能与Web技术
+  实现高效点云渲染
+end note
+@enduml

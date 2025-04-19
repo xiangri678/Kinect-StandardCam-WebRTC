@@ -1,0 +1,13 @@
+@startuml 离开会议
+actor 用户
+participant 系统
+
+用户 -> 系统: leaveMeeting()
+系统 --> 用户: confirmLeave()
+用户 -> 系统: userConfirmed()
+系统 --> 用户: closeMediaStreams()
+系统 --> 用户: disconnectWebRTC()
+系统 --> 用户: notifyParticipants()
+系统 --> 用户: cleanupResources()
+系统 --> 用户: returnToLogin()
+@enduml

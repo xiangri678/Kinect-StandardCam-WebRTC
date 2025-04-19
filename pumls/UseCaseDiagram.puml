@@ -1,0 +1,87 @@
+@startuml 视频会议系统用例图
+
+' 定义角色
+actor "会议发起者" as Initiator
+actor "Kinect参会者" as KinectUser
+actor "标准参会者" as StandardUser
+actor "信令服务器" as SignalingServer
+
+' 角色继承关系
+Initiator -|> StandardUser
+KinectUser -|> StandardUser
+
+' 用例组织
+rectangle "会议管理用例" {
+  usecase "创建会议" as UC1
+  usecase "加入会议" as UC2
+  usecase "离开会议" as UC3
+  usecase "邀请参会者" as UC4
+}
+
+rectangle "媒体通信用例" {
+  usecase "开启/关闭视频" as UC5
+  usecase "开启/关闭音频" as UC6
+  usecase "调整音量" as UC7
+  usecase "选择媒体设备" as UC8
+}
+
+rectangle "Kinect特有用例" {
+  usecase "切换视图模式\n(彩色/点云)" as UC9
+  usecase "调整点云渲染参数" as UC10
+  usecase "配置深度传感器" as UC11
+}
+
+rectangle "状态与监控用例" {
+  usecase "查看网络状态" as UC12
+  usecase "查看参会者列表" as UC13
+  usecase "查看设备连接状态" as UC14
+  usecase "访问调试信息" as UC15
+}
+
+rectangle "数据交互用例" {
+  usecase "发送点云数据" as UC16
+  usecase "接收点云数据" as UC17
+  usecase "交换信令消息" as UC18
+}
+
+' 角色与用例的关系
+
+' 会议发起者
+Initiator --> UC1
+Initiator --> UC4
+
+' 所有参会者共有
+StandardUser --> UC2
+StandardUser --> UC3
+StandardUser --> UC5
+StandardUser --> UC6
+StandardUser --> UC7
+StandardUser --> UC8
+StandardUser --> UC12
+StandardUser --> UC13
+StandardUser --> UC14
+StandardUser --> UC15
+
+' Kinect特有
+KinectUser --> UC9
+KinectUser --> UC10
+KinectUser --> UC11
+KinectUser --> UC16
+
+' 标准参会者数据接收
+StandardUser --> UC17
+
+' 信令服务器
+SignalingServer --> UC18
+
+' 包含和扩展关系
+UC1 ..> UC4 : <<include>>
+UC9 ..> UC16 : <<include>>
+UC9 ..> UC10 : <<include>>
+UC2 ..> UC18 : <<include>>
+UC3 ..> UC18 : <<include>>
+UC16 ..> UC18 : <<include>>
+UC17 ..> UC18 : <<include>>
+UC12 ..> UC18 : <<extend>>
+
+@enduml

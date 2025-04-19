@@ -1,0 +1,137 @@
+@startuml 业务领域模型包图
+
+package "会议管理域" {
+  class Meeting {
+    -会议ID
+    -会议主题
+    -开始时间
+    -状态
+    -创建者
+  }
+  
+  class MeetingRoom {
+    -房间ID
+    -房间名称
+    -最大容量
+    -当前参会人数
+    -访问控制
+  }
+  
+  class MeetingInvitation {
+    -邀请ID
+    -目标参会者
+    -邀请状态
+    -有效期
+  }
+}
+
+package "参会者域" {
+  class Participant {
+    -参会者ID
+    -显示名称
+    -参会状态
+    -参会角色
+  }
+  
+  class ParticipantProfile {
+    -头像
+    -联系信息
+    -用户偏好设置
+  }
+  
+  class ParticipantActivity {
+    -活动类型
+    -时间戳
+    -持续时间
+  }
+}
+
+package "媒体管理域" {
+  class MediaSource {
+    -类型
+    -状态
+    -媒体质量
+  }
+  
+  class VideoStream {
+    -流ID
+    -分辨率
+    -帧率
+    -清晰度
+  }
+  
+  class AudioStream {
+    -流ID
+    -音量级别
+    -静音状态
+    -音频质量
+  }
+  
+  class MediaContent {
+    -内容类型
+    -时间戳
+    -数据大小
+  }
+}
+
+package "通信域" {
+  class Communication {
+    -模式
+    -质量
+    -延迟
+  }
+  
+  class SignalingMessage {
+    -消息类型
+    -发送者
+    -接收者
+    -消息内容
+  }
+  
+  class DataMessage {
+    -消息类型
+    -发送者
+    -接收者
+    -消息内容
+  }
+}
+
+package "Kinect增强域" {
+  class DepthSensor {
+    -状态
+    -深度范围
+    -分辨率
+  }
+  
+  class PointCloud {
+    -点数
+    -密度
+    -渲染方式
+  }
+  
+  class VisualizationMode {
+    -模式
+    -效果设置
+    -控制参数
+  }
+}
+
+' 关联关系
+Meeting "1" --> "1" MeetingRoom : 使用
+Meeting "1" --> "0..*" MeetingInvitation : 发出
+Meeting "1" --> "1..*" Participant : 包含
+Participant "1" --> "1" ParticipantProfile : 拥有
+Participant "1" --> "0..*" ParticipantActivity : 产生
+Participant "1" --> "0..*" MediaSource : 控制
+MediaSource "1" --> "0..1" VideoStream : 生成
+MediaSource "1" --> "0..1" AudioStream : 生成
+VideoStream "1" --> "0..*" MediaContent : 传输
+AudioStream "1" --> "0..*" MediaContent : 传输
+Participant "1..*" --> "0..*" Communication : 参与
+Communication "1" --> "0..*" SignalingMessage : 交换
+Communication "1" --> "0..*" DataMessage : 传递
+MediaSource "1" --> "0..1" DepthSensor : 可能包含
+DepthSensor "1" --> "0..1" PointCloud : 生成
+Participant "1" --> "0..1" VisualizationMode : 选择
+
+@enduml

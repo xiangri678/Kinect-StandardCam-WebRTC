@@ -1,0 +1,18 @@
+@startuml 音视频控制
+actor 用户
+participant 系统
+
+用户 -> 系统: toggleMute()
+系统 --> 用户: audioStateChanged()
+系统 --> 用户: updateAudioIcon()
+系统 --> 用户: broadcastAudioState()
+
+用户 -> 系统: toggleCamera()
+系统 --> 用户: videoStateChanged()
+系统 --> 用户: updateVideoIcon()
+系统 --> 用户: toggleVideoStream()
+
+用户 -> 系统: adjustVolume()
+系统 --> 用户: volumeChanged()
+系统 --> 用户: updateVolumeDisplay()
+@enduml

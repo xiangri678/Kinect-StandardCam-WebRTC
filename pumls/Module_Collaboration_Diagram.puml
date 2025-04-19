@@ -1,0 +1,67 @@
+@startuml 多技术协同架构
+skinparam backgroundColor transparent
+
+!define RECTANGLE class
+
+RECTANGLE "Electron应用集成层" as Electron {
+  +渲染进程
+  +主进程
+  +进程间通信(IPC)
+  +Socket.IO服务器
+}
+
+RECTANGLE "WebRTC通信层" as WebRTC {
+  +连接管理
+  +媒体处理
+  +信令协商
+  +带宽控制
+}
+
+RECTANGLE "点云处理层" as PointCloud {
+  +空间数据结构
+  +渲染引擎
+  +压缩算法
+  +属性映射
+}
+
+RECTANGLE "Kinect接入层" as Kinect {
+  +设备驱动
+  +多模态采集
+  +数据预处理
+  +时间同步
+}
+
+RECTANGLE "安全传输层" as Security {
+  +DTLS握手
+  +SRTP加密
+  +密钥管理
+  +完整性验证
+}
+
+RECTANGLE "网络适应层" as Network {
+  +状态监控
+  +自适应编码
+  +QoS策略
+  +丢包恢复
+}
+
+Electron --> WebRTC : 集成
+Electron --> Kinect : 通过N-API调用
+WebRTC --> PointCloud : 传输点云数据
+WebRTC --> Security : 加密通道
+Kinect --> PointCloud : 提供原始数据
+WebRTC --> Network : 适应网络条件
+
+note "C++原生模块与JS桥接" as N1
+note "自定义SDP协商" as N2
+note "分层加密策略" as N3
+note "多模态数据同步" as N4
+note "带宽动态分配" as N5
+
+Electron .. N1
+N1 .. Kinect
+WebRTC .. N2
+Security .. N3
+Kinect .. N4
+Network .. N5
+@enduml

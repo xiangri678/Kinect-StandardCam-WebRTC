@@ -1,0 +1,63 @@
+@startuml 关键功能组件数据流
+skinparam backgroundColor transparent
+
+|数据采集模块|
+start
+:检测可用摄像头设备;
+if (设备类型) then (标准摄像头)
+  :通过getUserMedia API\n获取视频流;
+  :格式转换与预处理;
+else (Kinect设备)
+  :初始化Kinect SDK;
+  fork
+    :获取RGB彩色数据;
+    :颜色校正与增强;
+  fork again
+    :获取深度数据;
+    :深度图平滑滤波;
+  fork again
+    :获取红外数据;
+    :红外图像增强;
+  end fork
+  :多模态数据同步;
+  :生成点云数据;
+  :应用降采样策略;
+endif
+:准备传输数据;
+|信令与实时传输模块|
+:初始化WebRTC连接;
+fork
+  :建立信令通道;
+  :交换SDP信息;
+  :ICE候选收集与交换;
+  :执行NAT穿透;
+  :建立安全DTLS连接;
+fork again
+  :监控网络状态;
+  :计算RTT与可用带宽;
+  :调整编码参数;
+  :实现丢包恢复(NACK/PLI);
+end fork
+:建立端到端媒体通道;
+if (传输内容类型) then (音视频数据)
+  :通过MediaStream传输;
+else (点云数据)
+  :通过DataChannel传输;
+  :应用数据压缩;
+endif
+|客户端应用模块|
+:接收远程数据;
+if (数据类型) then (常规视频)
+  :解码视频帧;
+  :渲染到Video元素;
+else (点云数据)
+  :解压缩点云数据;
+  :初始化Three.js渲染器;
+  :配置点云材质与着色器;
+  :3D场景渲染;
+endif
+:处理用户交互事件;
+:显示UI反馈;
+:更新连接状态指示;
+stop
+@enduml

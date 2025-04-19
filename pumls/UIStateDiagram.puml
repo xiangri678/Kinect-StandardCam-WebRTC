@@ -1,0 +1,84 @@
+@startuml 系统UI状态转换图
+skinparam backgroundColor transparent
+left to right direction
+
+skinparam state {
+  BackgroundColor #FEFEFE
+  BorderColor #666666
+  ArrowColor #666666
+  FontName Arial
+  FontSize 14
+}
+
+skinparam StateFontStyle bold
+
+[*] --> 登录页面
+
+state 登录页面 {
+  state "用户名输入" as LoginUser
+  state "房间ID输入" as LoginRoom
+  state "服务器地址配置" as LoginServer
+  LoginUser --> LoginRoom
+  LoginRoom --> LoginServer
+}
+
+state 会议准备页面 {
+  state "设备检测" as SetupDevices
+  state "媒体预览" as SetupPreview
+  state "会议参数确认" as SetupParams
+  SetupDevices --> SetupPreview
+  SetupPreview --> SetupParams
+}
+
+state 会议中页面 {
+  state "标准视频模式" as MeetingStandard
+  state "点云视图模式" as MeetingPointCloud
+  state "红外图模式" as IR
+  state "深度图模式" as Depth
+  state "均匀视图" as MeetingGrid
+  state "焦点视图" as MeetingSpeaker
+  
+  MeetingStandard -[#blue]-> MeetingPointCloud
+  MeetingStandard -[#blue]-> IR
+  MeetingStandard -[#blue]-> Depth
+  MeetingPointCloud -[#blue]-> MeetingStandard
+  MeetingPointCloud -[#blue]-> IR
+  MeetingPointCloud -[#blue]-> Depth
+  IR -[#blue]-> MeetingPointCloud
+  IR -[#blue]-> Depth
+  IR -[#blue]-> MeetingStandard
+  Depth -[#blue]-> MeetingPointCloud
+  Depth -[#blue]-> IR
+  Depth -[#blue]-> MeetingStandard
+  
+  MeetingGrid -[#orange]-> MeetingSpeaker
+  MeetingSpeaker -[#orange]-> MeetingGrid
+}
+
+state 设置页面 {
+  state "音频设置" as SettingsAudio
+  state "视频设置" as SettingsVideo
+  state "Kinect设置" as SettingsKinect
+  state "网络设置" as SettingsNetwork
+}
+
+state "错误/恢复页面" as ErrorPage {
+  state "连接中断" as ErrorConnection
+  state "设备错误" as ErrorDevice
+  state "系统错误" as ErrorSystem
+}
+
+登录页面 -[#green]-> 会议准备页面 : 创建/加入会议
+会议准备页面 -[#green]-> 会议中页面 : 确认加入
+会议中页面 -[#purple]-> 设置页面 : 打开设置
+设置页面 -[#purple]-> 会议中页面 : 关闭设置
+
+会议中页面 -[#red]-> ErrorPage : 遇到错误
+ErrorPage -[#green]-> 会议中页面 : 恢复连接
+ErrorPage -[#orange]-> 会议准备页面 : 需要重新配置
+ErrorPage -[#red]-> 登录页面 : 无法恢复
+
+会议中页面 -[#gray]-> 登录页面 : 离开会议
+会议准备页面 -[#gray]-> 登录页面 : 取消加入
+
+@enduml

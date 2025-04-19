@@ -1,0 +1,16 @@
+@startuml 创建并加入会议
+actor 用户
+participant 系统
+
+用户 -> 系统: inputUsername()
+用户 -> 系统: inputRoomId()
+用户 -> 系统: createMeeting()
+系统 --> 用户: validateParams()
+系统 --> 用户: roomCreated()
+系统 --> 用户: showPreJoinUI()
+用户 -> 系统: configureDevices()
+用户 -> 系统: confirmJoin()
+系统 --> 用户: initializeMediaDevices()
+系统 --> 用户: showMeetingUI()
+系统 --> 用户: showLocalVideoPreview()
+@enduml
