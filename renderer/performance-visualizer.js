@@ -4,9 +4,6 @@
 // Chart.js is used for visualization
 // If not available, please install with: npm install chart.js
 
-// Import telemetry module
-// const { telemetry } = require('./performance-telemetry');
-
 class PerformanceVisualizer {
   constructor() {
     this.charts = {};
@@ -28,9 +25,10 @@ class PerformanceVisualizer {
     // Create chart containers for each metric category
     this.createChartContainer('latency-chart', 'End-to-End Latency (ms)', chartsContainer);
     this.createChartContainer('resources-chart', 'System Resources', chartsContainer);
-    this.createChartContainer('kinect-quality-chart', 'Kinect Depth Data Quality', chartsContainer);
+    // this.createChartContainer('kinect-quality-chart', 'Kinect Depth Data Quality', chartsContainer);
     this.createChartContainer('webrtc-connection-chart', 'WebRTC Connection Performance', chartsContainer);
     this.createChartContainer('stability-chart', 'Long-term Stability', chartsContainer);
+    this.createChartContainer('network-chart', 'Network Transfer Speed', chartsContainer);
     
     // Log metrics availability for debugging
     const metrics = window.telemetry.getAllMetrics();
@@ -135,6 +133,7 @@ class PerformanceVisualizer {
     this.updateKinectQualityChart();
     this.updateWebRTCConnectionChart();
     this.updateStabilityChart();
+    this.updateNetworkChart();
   }
   
   // Update the latency chart
@@ -400,83 +399,137 @@ class PerformanceVisualizer {
     if (!canvas) return;
     
     const ctx = canvas.getContext('2d');
+    
+    // Get metrics
     const metrics = window.telemetry.getAllMetrics();
+    const iceGatheringTime = this.getLatestValue(metrics.webrtcConnection.iceGatheringTime);
+    const connectionEstablishmentTime = this.getLatestValue(metrics.webrtcConnection.connectionEstablishmentTime);
+    const candidateCount = this.getLatestValue(metrics.webrtcConnection.candidateCount);
+    const totalConnectionTime = iceGatheringTime + connectionEstablishmentTime;
     
-    // Prepare data for chart
-    const iceGatheringTimeData = this.prepareTimeSeriesData(metrics.webrtcConnection.iceGatheringTime);
-    const connectionEstablishmentTimeData = this.prepareTimeSeriesData(metrics.webrtcConnection.connectionEstablishmentTime);
-    const candidateCountData = this.prepareTimeSeriesData(metrics.webrtcConnection.candidateCount);
-    
-    // If chart already exists, update it
+    // Clear existing chart if any
     if (this.chartInstances.webrtcConnection) {
-      this.chartInstances.webrtcConnection.data.labels = iceGatheringTimeData.labels;
-      this.chartInstances.webrtcConnection.data.datasets[0].data = iceGatheringTimeData.values;
-      this.chartInstances.webrtcConnection.data.datasets[1].data = connectionEstablishmentTimeData.values;
-      this.chartInstances.webrtcConnection.data.datasets[2].data = candidateCountData.values;
-      this.chartInstances.webrtcConnection.update();
-      return;
+      this.chartInstances.webrtcConnection.destroy();
     }
     
-    // Create new chart
+    // Create timeline visualization directly on the canvas
     this.chartInstances.webrtcConnection = new Chart(ctx, {
-      type: 'line',
+      type: 'bar',
       data: {
-        labels: iceGatheringTimeData.labels,
+        labels: ['Connection Timeline'],
         datasets: [
           {
-            label: 'ICE Gathering Time (ms)',
-            data: iceGatheringTimeData.values,
+            label: 'ICE Gathering',
+            data: [iceGatheringTime],
+            backgroundColor: 'rgba(255, 99, 132, 0.6)',
             borderColor: 'rgba(255, 99, 132, 1)',
-            backgroundColor: 'rgba(255, 99, 132, 0.2)',
-            borderWidth: 1,
-            yAxisID: 'time'
+            borderWidth: 1
           },
           {
-            label: 'Connection Establishment Time (ms)',
-            data: connectionEstablishmentTimeData.values,
+            label: 'Connection Establishment',
+            data: [connectionEstablishmentTime],
+            backgroundColor: 'rgba(54, 162, 235, 0.6)',
             borderColor: 'rgba(54, 162, 235, 1)',
-            backgroundColor: 'rgba(54, 162, 235, 0.2)',
-            borderWidth: 1,
-            yAxisID: 'time'
-          },
-          {
-            label: 'ICE Candidate Count',
-            data: candidateCountData.values,
-            borderColor: 'rgba(255, 206, 86, 1)',
-            backgroundColor: 'rgba(255, 206, 86, 0.2)',
-            borderWidth: 1,
-            yAxisID: 'count'
+            borderWidth: 1
           }
         ]
       },
       options: {
         responsive: true,
+        indexAxis: 'y',  // Horizontal bar chart
         scales: {
           x: {
-            display: true,
-            title: {
-              display: true,
-              text: 'Time'
-            }
-          },
-          time: {
-            position: 'left',
+            stacked: true,
             title: {
               display: true,
               text: 'Time (ms)'
             }
           },
-          count: {
-            position: 'right',
-            title: {
-              display: true,
-              text: 'Count'
-            },
-            beginAtZero: true
+          y: {
+            stacked: true
+          }
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              afterFooter: function(tooltipItems) {
+                return `Total Connection Time: ${totalConnectionTime}ms`;
+              }
+            }
+          },
+          annotation: {
+            annotations: {
+              candidateCountLabel: {
+                type: 'label',
+                xValue: totalConnectionTime,
+                yValue: 0,
+                backgroundColor: 'rgba(255, 206, 86, 0.6)',
+                content: [`ICE Candidates: ${candidateCount}`],
+                padding: 6
+              }
+            }
           }
         }
       }
     });
+    
+    // After rendering chart, add metadata text below the chart
+    const container = canvas.parentNode;
+    if (container) {
+      // Check if metadata container already exists
+      let metadataContainer = container.querySelector('.webrtc-metadata');
+      if (!metadataContainer) {
+        metadataContainer = document.createElement('div');
+        metadataContainer.className = 'webrtc-metadata';
+        metadataContainer.style.marginTop = '10px';
+        metadataContainer.style.textAlign = 'center';
+        container.appendChild(metadataContainer);
+      }
+      
+      metadataContainer.innerHTML = `
+        <div style="margin-bottom:5px; color:#fff;">
+          <span style="color:rgba(255, 99, 132, 1); font-weight:bold;">ICE Gathering:</span> ${iceGatheringTime}ms | 
+          <span style="color:rgba(54, 162, 235, 1); font-weight:bold;">Connection:</span> ${connectionEstablishmentTime}ms | 
+          <span style="color:rgba(255, 206, 86, 1); font-weight:bold;">Total:</span> ${totalConnectionTime}ms | 
+          <span style="color:rgba(75, 192, 192, 1); font-weight:bold;">Candidates:</span> ${candidateCount}
+        </div>`;
+    }
+  }
+  
+  // Helper method to get latest value from a metrics array
+  getLatestValue(metricsArray) {
+    if (!metricsArray || metricsArray.length === 0) return 0;
+    return metricsArray[metricsArray.length - 1].value;
+  }
+  
+  // Helper method to create a metric card
+  createMetricCard(title, value, color) {
+    const card = document.createElement('div');
+    card.className = 'metric-card';
+    card.style.backgroundColor = 'white';
+    card.style.border = `1px solid ${color}`;
+    card.style.borderRadius = '4px';
+    card.style.padding = '10px';
+    card.style.margin = '5px';
+    card.style.minWidth = '120px';
+    card.style.textAlign = 'center';
+    
+    const titleElem = document.createElement('div');
+    titleElem.textContent = title;
+    titleElem.style.fontSize = '12px';
+    titleElem.style.color = '#666';
+    titleElem.style.marginBottom = '5px';
+    
+    const valueElem = document.createElement('div');
+    valueElem.textContent = value;
+    valueElem.style.fontSize = '18px';
+    valueElem.style.fontWeight = 'bold';
+    valueElem.style.color = color;
+    
+    card.appendChild(titleElem);
+    card.appendChild(valueElem);
+    
+    return card;
   }
   
   // Update stability chart
@@ -489,13 +542,15 @@ class PerformanceVisualizer {
     
     // Prepare data for chart
     const frameRateData = this.prepareTimeSeriesData(metrics.stability.frameRate);
-    const memoryGrowthData = this.prepareTimeSeriesData(metrics.stability.memoryGrowth);
+    // 暂时不使用内存增长数据
+    // const memoryGrowthData = this.prepareTimeSeriesData(metrics.stability.memoryGrowth);
     
     // If chart already exists, update it
     if (this.chartInstances.stability) {
       this.chartInstances.stability.data.labels = frameRateData.labels;
       this.chartInstances.stability.data.datasets[0].data = frameRateData.values;
-      this.chartInstances.stability.data.datasets[1].data = memoryGrowthData.values;
+      // 暂时隐藏内存增长数据
+      // this.chartInstances.stability.data.datasets[1].data = memoryGrowthData.values;
       this.chartInstances.stability.update();
       return;
     }
@@ -513,7 +568,9 @@ class PerformanceVisualizer {
             backgroundColor: 'rgba(54, 162, 235, 0.2)',
             borderWidth: 1,
             yAxisID: 'framerate'
-          },
+          }
+          // 暂时注释掉内存增长数据集
+          /*
           {
             label: 'Memory Growth (%)',
             data: memoryGrowthData.values,
@@ -522,6 +579,7 @@ class PerformanceVisualizer {
             borderWidth: 1,
             yAxisID: 'percentage'
           }
+          */
         ]
       },
       options: {
@@ -541,7 +599,9 @@ class PerformanceVisualizer {
               text: 'Frame Rate (FPS)'
             },
             beginAtZero: true
-          },
+          }
+          // 暂时注释掉内存增长轴
+          /*
           percentage: {
             position: 'right',
             title: {
@@ -549,6 +609,7 @@ class PerformanceVisualizer {
               text: 'Memory Growth (%)'
             }
           }
+          */
         }
       }
     });
@@ -590,7 +651,8 @@ class PerformanceVisualizer {
       resources: this.exportChartAsImage('resources-chart'),
       kinectQuality: this.exportChartAsImage('kinect-quality-chart'),
       webrtcConnection: this.exportChartAsImage('webrtc-connection-chart'),
-      stability: this.exportChartAsImage('stability-chart')
+      stability: this.exportChartAsImage('stability-chart'),
+      network: this.exportChartAsImage('network-chart')
     };
   }
   
@@ -701,6 +763,13 @@ class PerformanceVisualizer {
       `;
     }
     
+    if (charts.network) {
+      html += `
+        <h2>Network Transfer Speed</h2>
+        <img class="chart-image" src="${charts.network}" alt="Network Chart">
+      `;
+    }
+    
     html += `
     </body>
     </html>
@@ -758,6 +827,108 @@ class PerformanceVisualizer {
       console.error('[Visualizer] Error saving report:', error);
       return null;
     }
+  }
+
+  // Update network chart
+  updateNetworkChart() {
+    const canvas = document.getElementById('network-chart');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const metrics = window.telemetry.getAllMetrics();
+    
+    // Prepare data for chart
+    let uploadData = this.prepareTimeSeriesData(metrics.network.uploadSpeed);
+    let downloadData = this.prepareTimeSeriesData(metrics.network.downloadSpeed);
+    
+    // 如果数据点过多，进行采样处理，只保留最新的30个点
+    const MAX_DATA_POINTS = 30;
+    if (uploadData.values.length > MAX_DATA_POINTS) {
+      const startIndex = uploadData.values.length - MAX_DATA_POINTS;
+      uploadData = {
+        labels: uploadData.labels.slice(startIndex),
+        values: uploadData.values.slice(startIndex)
+      };
+      downloadData = {
+        labels: downloadData.labels.slice(startIndex),
+        values: downloadData.values.slice(startIndex)
+      };
+    }
+    
+    // If chart already exists, update it
+    if (this.chartInstances.network) {
+      this.chartInstances.network.data.labels = uploadData.labels;
+      this.chartInstances.network.data.datasets[0].data = uploadData.values;
+      this.chartInstances.network.data.datasets[1].data = downloadData.values;
+      this.chartInstances.network.update();
+      return;
+    }
+    
+    // Helper function to convert bytes to appropriate unit
+    const formatBytesAxis = (value) => {
+      if (value === 0) return '0 B/s';
+      const k = 1024;
+      const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+      const i = Math.floor(Math.log(value) / Math.log(k));
+      return parseFloat((value / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+    
+    // Create new chart
+    this.chartInstances.network = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: uploadData.labels,
+        datasets: [
+          {
+            label: 'Upload Speed',
+            data: uploadData.values,
+            borderColor: 'rgba(255, 99, 132, 1)',
+            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+            borderWidth: 1,
+            fill: true
+          },
+          {
+            label: 'Download Speed',
+            data: downloadData.values,
+            borderColor: 'rgba(54, 162, 235, 1)',
+            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+            borderWidth: 1,
+            fill: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: {
+            display: true,
+            title: {
+              display: true,
+              text: 'Time'
+            }
+          },
+          y: {
+            display: true,
+            title: {
+              display: true,
+              text: 'Transfer Speed'
+            },
+            ticks: {
+              callback: function(value) {
+                return formatBytesAxis(value);
+              }
+            }
+          }
+        },
+        tooltips: {
+          callbacks: {
+            label: function(tooltipItem, data) {
+              return formatBytesAxis(tooltipItem.value);
+            }
+          }
+        }
+      }
+    });
   }
 }
 

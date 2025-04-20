@@ -30,6 +30,13 @@ class CameraManager {
     this.isSimulated = false; // 是否使用模拟模式
     this.simulationInterval = null; // 模拟模式的定时器
 
+    // 性能监控相关属性
+    this.frameCount = 0;
+    this.lastFpsUpdateTime = 0;
+    this.lastMemoryCheckTime = 0;
+    this.lastFpsCount = 0;
+    this.lastMemoryUsage = 0;
+
     // 点云相关属性
     this.viewMode = "color"; // 'color' 或 'pointCloud'
     this.pointCloudCanvas = null;
@@ -233,8 +240,16 @@ class CameraManager {
   startFrameLoop() {
     console.log('开始本地彩色视频流帧循环');
     
+    // 初始化性能监控时间戳
+    this.frameCount = 0;
+    this.lastFpsUpdateTime = Date.now();
+    this.lastMemoryCheckTime = Date.now();
+    
     const processFrame = () => {
-      // console.log('[Camera] 处理视频帧开始');
+      // 开始测量捕获时间
+      if (window.telemetry) {
+        window.telemetry.startCaptureTiming();
+      }
       
       // 检查视频是否已准备好以及Canvas是否存在
       if (this.videoElement && this.videoElement.readyState === 4 && this.localCanvas && this.localCtx) {
@@ -248,9 +263,19 @@ class CameraManager {
           this.localCanvas.height = this.videoElement.videoHeight;
         }
         
+        // 开始测量处理时间
+        if (window.telemetry) {
+          window.telemetry.startProcessingTiming();
+        }
+        
         // 将视频帧绘制到Canvas
         // console.log('[Camera] 将视频帧绘制到Canvas');
         this.localCtx.drawImage(this.videoElement, 0, 0);
+        
+        // 开始测量传输时间
+        if (window.telemetry) {
+          window.telemetry.startTransmissionTiming();
+        }
         
         // 调用帧回调
         if (this.onFrameCallback) {
@@ -262,8 +287,18 @@ class CameraManager {
             height: this.localCanvas.height
           };
           
+          // 开始测量渲染时间
+          if (window.telemetry) {
+            window.telemetry.startRenderingTiming();
+          }
+          
           // console.log(`[Camera] 帧数据: 时间戳=${frameData.timestamp}, 尺寸=${frameData.width}x${frameData.height}`);
           this.onFrameCallback(frameData);
+          
+          // 结束测量渲染时间
+          if (window.telemetry) {
+            window.telemetry.endRenderingTiming();
+          }
         } else {
           console.log('[Camera] 没有设置帧回调函数');
         }
@@ -278,6 +313,44 @@ class CameraManager {
         } else if (!this.localCtx) {
           console.warn('[Camera] Canvas上下文未找到，帧处理暂停');
         }
+      }
+      
+      // 帧率和内存监控
+      const now = Date.now();
+      this.frameCount++;
+      
+      // 计算并记录FPS - 每秒更新一次
+      if (now - this.lastFpsUpdateTime >= 1000) {
+        const elapsed = Math.max(0.001, (now - this.lastFpsUpdateTime) / 1000); // 确保不会除以0或负数
+        const framesInPeriod = Math.max(0, this.frameCount - (this.lastFpsCount || 0)); // 确保帧数不为负
+        const currentFps = Math.round(framesInPeriod / elapsed);
+        
+        // 记录FPS到性能遥测
+        if (window.telemetry) {
+          window.telemetry.recordFrameRate(currentFps);
+        }
+        
+        this.lastFpsCount = this.frameCount;
+        this.lastFpsUpdateTime = now;
+        
+        // 每5秒检查一次内存增长 - 临时注释
+        /*
+        if (now - this.lastMemoryCheckTime >= 5000 && window.performance && window.performance.memory) {
+          const currentMemory = window.performance.memory.usedJSHeapSize;
+          
+          if (this.lastMemoryUsage) {
+            const memoryGrowth = ((currentMemory - this.lastMemoryUsage) / this.lastMemoryUsage) * 100;
+            
+            // 记录内存增长到性能遥测
+            if (window.telemetry) {
+              window.telemetry.recordMemoryGrowth(memoryGrowth);
+            }
+          }
+          
+          this.lastMemoryUsage = currentMemory;
+          this.lastMemoryCheckTime = now;
+        }
+        */
       }
       
       // 继续下一帧
@@ -350,14 +423,34 @@ class CameraManager {
     // 动画参数
     let animationPhase = 0;
     
+    // 初始化性能监控时间戳
+    this.frameCount = 0;
+    this.lastFpsUpdateTime = Date.now();
+    this.lastMemoryCheckTime = Date.now();
+    
     // 每秒更新30次图像（30fps）模拟真实摄像头
     this.simulationInterval = setInterval(() => {
+      // 开始测量捕获时间
+      if (window.telemetry) {
+        window.telemetry.startCaptureTiming();
+      }
+      
       // 绘制基本测试图案
       this.drawTestPattern();
+      
+      // 开始测量处理时间
+      if (window.telemetry) {
+        window.telemetry.startProcessingTiming();
+      }
       
       // 添加简单动画
       this.addAnimationEffects(animationPhase);
       animationPhase += 0.1;
+      
+      // 开始测量传输时间
+      if (window.telemetry) {
+        window.telemetry.startTransmissionTiming();
+      }
       
       // 调用回调函数，提供模拟的帧数据
       if (this.onFrameCallback) {
@@ -369,7 +462,55 @@ class CameraManager {
           height: this.localCanvas.height
         };
         
+        // 开始测量渲染时间
+        if (window.telemetry) {
+          window.telemetry.startRenderingTiming();
+        }
+        
         this.onFrameCallback(frameData);
+        
+        // 结束测量渲染时间
+        if (window.telemetry) {
+          window.telemetry.endRenderingTiming();
+        }
+      }
+      
+      // 帧率和内存监控
+      const now = Date.now();
+      this.frameCount++;
+      
+      // 计算并记录FPS - 每秒更新一次
+      if (now - this.lastFpsUpdateTime >= 1000) {
+        const elapsed = Math.max(0.001, (now - this.lastFpsUpdateTime) / 1000); // 确保不会除以0或负数
+        const framesInPeriod = Math.max(0, this.frameCount - (this.lastFpsCount || 0)); // 确保帧数不为负
+        const currentFps = Math.round(framesInPeriod / elapsed);
+        
+        // 记录FPS到性能遥测
+        if (window.telemetry) {
+          window.telemetry.recordFrameRate(currentFps);
+        }
+        
+        this.lastFpsCount = this.frameCount;
+        this.lastFpsUpdateTime = now;
+        
+        // 每5秒检查一次内存增长 - 临时注释
+        /*
+        if (now - this.lastMemoryCheckTime >= 5000 && window.performance && window.performance.memory) {
+          const currentMemory = window.performance.memory.usedJSHeapSize;
+          
+          if (this.lastMemoryUsage) {
+            const memoryGrowth = ((currentMemory - this.lastMemoryUsage) / this.lastMemoryUsage) * 100;
+            
+            // 记录内存增长到性能遥测
+            if (window.telemetry) {
+              window.telemetry.recordMemoryGrowth(memoryGrowth);
+            }
+          }
+          
+          this.lastMemoryUsage = currentMemory;
+          this.lastMemoryCheckTime = now;
+        }
+        */
       }
     }, 33); // 约30fps
     

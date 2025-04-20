@@ -41,6 +41,14 @@ class PerformanceTelemetry {
         memoryGrowth: [],
         pointCloudQuality: [],
         exceptionCount: 0
+      },
+      
+      // Network transfer metrics
+      network: {
+        uploadSpeed: [],
+        downloadSpeed: [],
+        totalBytesSent: [],
+        totalBytesReceived: []
       }
     };
     
@@ -56,6 +64,10 @@ class PerformanceTelemetry {
     this.collectingEnabled = false;
     this.intervalId = null;
     this.logEnabled = false;
+    
+    // 添加延迟数据记录的时间控制
+    this.lastLatencyRecordTime = 0;
+    this.latencyRecordInterval = 2000; // 每2秒记录一次延迟数据
     
     // File storage
     this.storageEnabled = false;
@@ -137,13 +149,18 @@ class PerformanceTelemetry {
     const captureTime = now - this.timestamps.captureStart;
     
     if (this.collectingEnabled && this.timestamps.captureStart > 0) {
-      this.metrics.latency.capture.push({
-        timestamp: now,
-        value: captureTime
-      });
+      // 检查是否达到记录间隔时间
+      const shouldRecord = (now - this.lastLatencyRecordTime) >= this.latencyRecordInterval;
       
-      if (this.logEnabled) {
-        console.log(`[Telemetry] Capture latency: ${captureTime.toFixed(2)}ms`);
+      if (shouldRecord) {
+        this.metrics.latency.capture.push({
+          timestamp: now,
+          value: captureTime
+        });
+        
+        if (this.logEnabled) {
+          console.log(`[Telemetry] Capture latency: ${captureTime.toFixed(2)}ms`);
+        }
       }
     }
     
@@ -156,13 +173,18 @@ class PerformanceTelemetry {
     const processingTime = now - this.timestamps.processingStart;
     
     if (this.collectingEnabled && this.timestamps.processingStart > 0) {
-      this.metrics.latency.processing.push({
-        timestamp: now,
-        value: processingTime
-      });
+      // 检查是否达到记录间隔时间
+      const shouldRecord = (now - this.lastLatencyRecordTime) >= this.latencyRecordInterval;
       
-      if (this.logEnabled) {
-        console.log(`[Telemetry] Processing latency: ${processingTime.toFixed(2)}ms`);
+      if (shouldRecord) {
+        this.metrics.latency.processing.push({
+          timestamp: now,
+          value: processingTime
+        });
+        
+        if (this.logEnabled) {
+          console.log(`[Telemetry] Processing latency: ${processingTime.toFixed(2)}ms`);
+        }
       }
     }
     
@@ -175,13 +197,18 @@ class PerformanceTelemetry {
     const transmissionTime = now - this.timestamps.transmissionStart;
     
     if (this.collectingEnabled && this.timestamps.transmissionStart > 0) {
-      this.metrics.latency.transmission.push({
-        timestamp: now,
-        value: transmissionTime
-      });
+      // 检查是否达到记录间隔时间
+      const shouldRecord = (now - this.lastLatencyRecordTime) >= this.latencyRecordInterval;
       
-      if (this.logEnabled) {
-        console.log(`[Telemetry] Transmission latency: ${transmissionTime.toFixed(2)}ms`);
+      if (shouldRecord) {
+        this.metrics.latency.transmission.push({
+          timestamp: now,
+          value: transmissionTime
+        });
+        
+        if (this.logEnabled) {
+          console.log(`[Telemetry] Transmission latency: ${transmissionTime.toFixed(2)}ms`);
+        }
       }
     }
     
@@ -195,19 +222,27 @@ class PerformanceTelemetry {
     const totalTime = now - this.timestamps.captureStart;
     
     if (this.collectingEnabled && this.timestamps.renderingStart > 0) {
-      this.metrics.latency.rendering.push({
-        timestamp: now,
-        value: renderingTime
-      });
+      // 检查是否达到记录间隔时间
+      const shouldRecord = (now - this.lastLatencyRecordTime) >= this.latencyRecordInterval;
       
-      this.metrics.latency.total.push({
-        timestamp: now,
-        value: totalTime
-      });
-      
-      if (this.logEnabled) {
-        console.log(`[Telemetry] Rendering latency: ${renderingTime.toFixed(2)}ms`);
-        console.log(`[Telemetry] Total end-to-end latency: ${totalTime.toFixed(2)}ms`);
+      if (shouldRecord) {
+        this.metrics.latency.rendering.push({
+          timestamp: now,
+          value: renderingTime
+        });
+        
+        this.metrics.latency.total.push({
+          timestamp: now,
+          value: totalTime
+        });
+        
+        // 更新最后记录时间
+        this.lastLatencyRecordTime = now;
+        
+        if (this.logEnabled) {
+          console.log(`[Telemetry] Rendering latency: ${renderingTime.toFixed(2)}ms`);
+          console.log(`[Telemetry] Total end-to-end latency: ${totalTime.toFixed(2)}ms`);
+        }
       }
     }
     
@@ -357,9 +392,12 @@ class PerformanceTelemetry {
   recordFrameRate(fps) {
     if (!this.collectingEnabled) return;
     
+    // 确保FPS值不为负数
+    const validFps = Math.max(0, fps);
+    
     this.metrics.stability.frameRate.push({
       timestamp: performance.now(),
-      value: fps
+      value: validFps
     });
   }
   
@@ -378,6 +416,68 @@ class PerformanceTelemetry {
     if (!this.collectingEnabled) return;
     
     this.metrics.stability.exceptionCount++;
+  }
+  
+  // ===========================================
+  // Network Transfer Metrics Methods
+  // ===========================================
+  
+  // Record upload speed (bytes/sec)
+  recordUploadSpeed(bytesPerSecond) {
+    if (!this.collectingEnabled) return;
+    
+    this.metrics.network.uploadSpeed.push({
+      timestamp: performance.now(),
+      value: bytesPerSecond
+    });
+    
+    if (this.logEnabled) {
+      console.log(`[Telemetry] Upload speed: ${this.formatBytes(bytesPerSecond)}/s`);
+    }
+  }
+  
+  // Record download speed (bytes/sec)
+  recordDownloadSpeed(bytesPerSecond) {
+    if (!this.collectingEnabled) return;
+    
+    this.metrics.network.downloadSpeed.push({
+      timestamp: performance.now(),
+      value: bytesPerSecond
+    });
+    
+    if (this.logEnabled) {
+      console.log(`[Telemetry] Download speed: ${this.formatBytes(bytesPerSecond)}/s`);
+    }
+  }
+  
+  // Record total bytes sent
+  recordTotalBytesSent(bytes) {
+    if (!this.collectingEnabled) return;
+    
+    this.metrics.network.totalBytesSent.push({
+      timestamp: performance.now(),
+      value: bytes
+    });
+  }
+  
+  // Record total bytes received
+  recordTotalBytesReceived(bytes) {
+    if (!this.collectingEnabled) return;
+    
+    this.metrics.network.totalBytesReceived.push({
+      timestamp: performance.now(),
+      value: bytes
+    });
+  }
+  
+  // Format bytes to human readable format
+  formatBytes(bytes, decimals = 2) {
+    if (bytes === 0) return '0 B';
+    
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
   }
   
   // ===========================================

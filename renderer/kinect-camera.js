@@ -12,9 +12,6 @@ let isWindows = typeof window !== 'undefined' &&
   (window.navigator.platform.indexOf('Win') >= 0);
 var lastTransferPointCloudDataTime = 0;
 
-// Import telemetry module
-// const { telemetry } = require('./performance-telemetry');
-
 try { 
   if (isWindows) {
     KinectAzure = require('kinect-azure');
@@ -104,6 +101,10 @@ class KinectCameraManager {
     this.frameCount = 0;
     this.animationStartTime = 0;
     this.lastFrameTime = 0;
+    this.lastFpsUpdateTime = 0;
+    this.lastMemoryCheckTime = 0;
+    this.lastFpsCount = 0;
+    this.lastMemoryUsage = 0;
 
     // 远程数据相关属性
     this.lastReceivedDataTime = 0;
@@ -413,6 +414,11 @@ class KinectCameraManager {
       return;
     }
 
+    // 开始测量捕获时间
+    if (window.telemetry) {
+      window.telemetry.startCaptureTiming();
+    }
+
     // 确保 Canvas 尺寸与图像一致
     if (
       this.colorCanvas.width !== data.colorImageFrame.width ||
@@ -420,6 +426,11 @@ class KinectCameraManager {
     ) {
       this.colorCanvas.width = data.colorImageFrame.width;
       this.colorCanvas.height = data.colorImageFrame.height;
+    }
+
+    // 开始测量处理时间
+    if (window.telemetry) {
+      window.telemetry.startProcessingTiming();
     }
 
     // 创建 ImageData 并渲染到 Canvas
@@ -432,6 +443,25 @@ class KinectCameraManager {
       // 清除Canvas，然后渲染彩色图像
       this.colorCtx.clearRect(0, 0, this.colorCanvas.width, this.colorCanvas.height);
       this.colorCtx.putImageData(imageData, 0, 0);
+      
+      // RGB模式下帧率和内存监控
+      const now = Date.now();
+      this.frameCount++;
+      
+      // 计算并记录FPS
+      if (now - this.lastFpsUpdateTime >= 1000) { // 每秒更新一次FPS
+        const elapsed = Math.max(0.001, (now - this.lastFpsUpdateTime) / 1000); // 确保不会除以0或负数
+        const framesInPeriod = Math.max(0, this.frameCount - (this.lastFpsCount || 0)); // 确保帧数不为负
+        const currentFps = Math.round(framesInPeriod / elapsed);
+        
+        // 记录FPS到性能遥测
+        if (window.telemetry) {
+          window.telemetry.recordFrameRate(currentFps);
+        }
+        
+        this.lastFpsCount = this.frameCount;
+        this.lastFpsUpdateTime = now;
+      }
     } else if (viewMode === "depth") {
       // 先清除整个Canvas
       this.colorCtx.clearRect(0, 0, this.colorCanvas.width, this.colorCanvas.height);
@@ -467,6 +497,11 @@ class KinectCameraManager {
           data.irImageFrame
         );
       }
+    }
+
+    // 开始测量传输时间
+    if (window.telemetry) {
+      window.telemetry.startTransmissionTiming();
     }
 
     // 调用回调函数
@@ -906,10 +941,12 @@ class KinectCameraManager {
 
     console.log("启动点云渲染循环");
 
-    // 跟踪帧数以便调试 - 使用类属性
+    // 跟踪帧数以便调试
     this.frameCount = 0;
     this.animationStartTime = Date.now();
     this.lastFrameTime = Date.now();
+    this.lastFpsUpdateTime = Date.now();
+    this.lastMemoryCheckTime = Date.now();
 
     // 设置一个正常帧率的基准
     const targetFrameRate = 60;
@@ -952,6 +989,21 @@ class KinectCameraManager {
           this.animationFrameId = requestAnimationFrame(animate);
         }, minFrameTime - frameDelta);
         return;
+      }
+
+      // 计算并记录FPS
+      if (now - this.lastFpsUpdateTime >= 1000) { // 每秒更新一次FPS
+        const elapsed = Math.max(0.001, (now - this.lastFpsUpdateTime) / 1000); // 确保不会除以0或负数
+        const framesInPeriod = Math.max(0, this.frameCount - (this.lastFpsCount || 0)); // 确保帧数不为负
+        const currentFps = Math.round(framesInPeriod / elapsed);
+        
+        // 记录FPS到性能遥测
+        if (window.telemetry) {
+          window.telemetry.recordFrameRate(currentFps);
+        }
+        
+        this.lastFpsCount = this.frameCount;
+        this.lastFpsUpdateTime = now;
       }
 
       // 继续执行动画帧
@@ -1034,6 +1086,11 @@ class KinectCameraManager {
           }
         }
 
+        // 开始测量渲染时间
+        if (window.telemetry) {
+          window.telemetry.startRenderingTiming();
+        }
+
         // 渲染新帧 - 添加错误处理
         if (this.threeJsRenderer && this.threeJsScene && this.threeJsCamera) {
           this.threeJsRenderer.render(this.threeJsScene, this.threeJsCamera);
@@ -1042,6 +1099,11 @@ class KinectCameraManager {
         // 调用回调函数 - 使用点云Canvas
         if (this.onFrameCallback && this.pointCloudCanvas) {
           this.onFrameCallback(this.pointCloudCanvas);
+        }
+
+        // 结束渲染时间测量
+        if (window.telemetry) {
+          window.telemetry.endRenderingTiming();
         }
       } catch (error) {
         console.error("渲染点云时出错:", error);
@@ -1069,9 +1131,19 @@ class KinectCameraManager {
       return;
     }
 
+    // 开始测量捕获时间
+    if (window.telemetry) {
+      window.telemetry.startCaptureTiming();
+    }
+
     // 确保有深度和颜色数据
     if (!data.depthImageFrame || !data.colorToDepthImageFrame) {
       return;
+    }
+
+    // 开始测量处理时间
+    if (window.telemetry) {
+      window.telemetry.startProcessingTiming();
     }
 
     // 处理数据
@@ -1135,7 +1207,10 @@ class KinectCameraManager {
     this.pointCloud.geometry.attributes.position.needsUpdate = true;
     this.pointCloud.geometry.attributes.color.needsUpdate = true;
 
-    // console.log('position 和 color 原始数据：', positions, colors, Date.now());
+    // 开始测量传输时间
+    if (window.telemetry) {
+      window.telemetry.startTransmissionTiming();
+    }
 
     // 请求渲染一帧
     if (this.threeJsRenderer && this.threeJsScene && this.threeJsCamera) {
@@ -1143,15 +1218,6 @@ class KinectCameraManager {
       // console.log("[Kinect] 本地渲染了一帧点云");
     }
 
-    // if (
-    //   lastTransferPointCloudDataTime &&
-    //   Date.now() - lastTransferPointCloudDataTime < 1000
-    // ) {
-    //   console.log("[Kinect] 激进的节流：每1000ms最多更新一次，跳过发送本帧");
-    //   return;
-    // }
-    // lastTransferPointCloudDataTime = Date.now();
-    
     // 激进的降采样：只保留部分点
     const sampleRate = 36; // 采样率 // 计算点的数量而不是直接用数组长度
     const numOriginalPoints = depthData.length / 2; // 深度数据中的点数
@@ -1215,36 +1281,18 @@ class KinectCameraManager {
         downPositions.length / 3
       } 个点`
     );
-    // this.pointCloud.geometry.setAttribute(
-    //   "position",
-    //   new THREE.BufferAttribute(downPositions, 3)
-    // );
-    // this.pointCloud.geometry.setAttribute(
-    //   "color",
-    //   new THREE.BufferAttribute(downColors, 3)
-    // );
-
-    // console.log('position 和 color 原始数据：', positions, colors, Date.now());
 
     // 如果是点云模式且WebRTC连接已建立，发送点云数据
     if (this.viewMode === "pointCloud" && window.webrtcManager) {
       const isConnected = window.webrtcManager.isConnected;
       const hasDataChannel = window.webrtcManager.dataChannel;
 
-      console.log(
-        `[Kinect] 点云数据准备发送，WebRTC连接状态: ${
-          isConnected ? "已连接" : "未连接"
-        }, 数据通道状态: ${hasDataChannel ? "已创建" : "未创建"}`
-      ); // 创建二进制数据
-
       const combinedBuffer = new Float32Array(
         downPositions.length + downColors.length
       );
       combinedBuffer.set(downPositions);
       combinedBuffer.set(downColors, downPositions.length);
-      console.log("0328 尝试发送中"); // 发送二进制数据
       window.webrtcManager.peers["Mac用户"].send(combinedBuffer.buffer);
-      console.log("[WebRTC] 二进制点云数据已发送");
     }
   }
 
